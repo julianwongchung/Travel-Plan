@@ -1,0 +1,11 @@
+export const tripKeys = {
+  all: ["trips"] as const,
+  lists: () => [...tripKeys.all, "list"] as const,
+  list: (filter: string) => [...tripKeys.lists(), filter] as const,
+  detail: (tripId: string) => [...tripKeys.all, tripId] as const,
+  days: (tripId: string) => [...tripKeys.detail(tripId), "days"] as const,
+  places: (tripId: string) => [...tripKeys.detail(tripId), "places"] as const,
+  expenses: (tripId: string) => [...tripKeys.detail(tripId), "expenses"] as const,
+  travelers: (tripId: string) => [...tripKeys.detail(tripId), "travelers"] as const,
+  members: (tripId: string) => [...tripKeys.detail(tripId), "members"] as const,
+};
