@@ -18,10 +18,10 @@ export default async function TripLayout({
     <TripShell trip={context.trip} role={context.role} members={memberData.members} invitations={memberData.invitations}>
       <RealtimeRefresh tripId={tripId} />
       {context.trip.deleted_at ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">This trip is in trash. Restore it from My Trips before editing.</div>
+        <div className="mb-4 rounded-[18px] border border-[rgba(255,69,58,0.2)] bg-[var(--danger-soft)] p-4 text-sm font-semibold text-[var(--danger)]">This trip is in trash. Restore it from My Trips before editing.</div>
       ) : null}
       {context.trip.trip_status === "archived" ? (
-        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">This trip has been archived. Owner actions can restore it from My Trips.</div>
+        <div className="mb-4 rounded-[18px] border border-[var(--border)] bg-[var(--muted)] p-4 text-sm font-semibold text-[var(--muted-foreground)]">This trip has been archived. Owner actions can restore it from My Trips.</div>
       ) : null}
       {children}
     </TripShell>

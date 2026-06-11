@@ -1,14 +1,14 @@
 import type { HTMLAttributes } from "react";
-import { cn } from "@/lib/utils/cn";
+import { GlassCard, GlassCardContent, GlassCardHeader } from "@/components/ui/glass-card";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-sm", className)} {...props} />;
+  return <GlassCard className={className} {...props} />;
 }
 
 export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("border-b border-[var(--border)] p-4", className)} {...props} />;
+  return <GlassCardHeader className={className} {...props} />;
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-4", className)} {...props} />;
+  return <GlassCardContent className={className} {...props} />;
 }

@@ -169,6 +169,7 @@ export type Database = {
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: void };
       restore_expense: { Args: { p_expense_id: string }; Returns: void };
       delete_schedule_item: { Args: { p_schedule_item_id: string }; Returns: void };
+      reorder_schedule_items: { Args: { p_trip_id: string; p_trip_day_id: string; p_schedule_item_ids: string[] }; Returns: void };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

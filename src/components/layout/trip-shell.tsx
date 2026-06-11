@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, Home, LogOut, MapPin, Plane, WalletCards } from "lucide-react";
+import { CalendarDays, ChevronLeft, Home, LogOut, MapPin, Plane, WalletCards } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/glass-card";
+import { WorkspaceMobileNav } from "@/components/layout/workspace-mobile-nav";
 import { RoleBadge } from "@/components/trip/role-badge";
 import { StatusBadge } from "@/components/trip/status-badge";
 import type { Role, Trip, TripInvitation, TripMember } from "@/lib/db/types";
@@ -26,25 +28,25 @@ export function TripShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[var(--background)]">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-[var(--border)] bg-white p-5 lg:block">
-        <Link href="/trips" className="flex items-center gap-3 text-lg font-bold">
-          <span className="grid size-10 place-items-center rounded-lg bg-[var(--primary)] text-white">
+    <div className="min-h-screen">
+      <aside className="glass-surface-strong fixed inset-y-4 left-4 z-30 hidden w-72 rounded-[30px] p-5 xl:block">
+        <Link href="/trips" className="flex items-center gap-3 text-lg font-bold tracking-[-0.02em]">
+          <span className="grid size-11 place-items-center rounded-[16px] bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(10,132,255,0.28)]">
             <Plane size={20} />
           </span>
           Travel OS
         </Link>
-        <div className="mt-6 rounded-lg bg-[var(--muted)] p-4">
-          <p className="text-xs font-bold uppercase text-slate-500">Current trip</p>
-          <h1 className="mt-1 text-lg font-bold">{trip.name}</h1>
+        <GlassCard variant="subtle" className="mt-7 rounded-[22px] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Current trip</p>
+          <h1 className="mt-1.5 text-lg font-bold tracking-[-0.02em]">{trip.name}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
             <RoleBadge role={role} />
             <StatusBadge status={trip.trip_status} />
           </div>
-        </div>
-        <nav className="mt-6 grid gap-1">
+        </GlassCard>
+        <nav className="mt-6 grid gap-1.5">
           {navItems.map((item) => (
-            <Link key={item.href} href={`/trips/${trip.id}/${item.href}`} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-700 hover:bg-[var(--muted)]">
+            <Link key={item.href} href={`/trips/${trip.id}/${item.href}`} className="ios-pressable flex min-h-12 items-center gap-3 rounded-[17px] px-3.5 text-sm font-semibold text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]">
               <item.icon size={18} />
               {item.label}
             </Link>
@@ -58,31 +60,24 @@ export function TripShell({
         </form>
       </aside>
 
-      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-white/95 px-4 py-3 backdrop-blur lg:ml-72">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-          <div>
-            <Link href="/trips" className="text-xs font-bold uppercase text-slate-500">
-              My Trips
+      <header className="glass-surface-strong sticky top-0 z-50 min-h-14 border-x-0 border-t-0 px-2.5 py-1.5 xl:ml-80 xl:min-h-0 xl:px-4 xl:py-3 xl:bg-transparent xl:shadow-none xl:backdrop-blur-none">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1">
+            <Link href="/trips" aria-label="Back to My Trips" className="ios-pressable grid size-11 shrink-0 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--muted)]">
+              <ChevronLeft size={16} />
             </Link>
-            <h2 className="text-xl font-bold">{trip.name}</h2>
+            <h2 className="truncate text-sm font-bold tracking-[-0.02em] sm:text-base">{trip.name}</h2>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <RoleBadge role={role} />
-            <StatusBadge status={trip.trip_status} />
+          <div className="flex shrink-0 items-center gap-1">
+            <RoleBadge role={role} className="min-h-6 px-2 py-0.5 text-[10px]" />
+            <StatusBadge status={trip.trip_status} className="min-h-6 px-2 py-0.5 text-[10px]" />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5 pb-28 lg:ml-72 lg:px-8">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-7xl px-3 py-5 pb-32 sm:px-5 sm:py-6 xl:ml-80 xl:px-8 xl:pb-10">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[var(--border)] bg-white px-2 py-2 shadow-lg lg:hidden">
-        {navItems.map((item) => (
-          <Link key={item.href} href={`/trips/${trip.id}/${item.href}`} className="grid min-h-14 justify-items-center gap-1 rounded-md px-1 py-2 text-xs font-bold text-slate-600">
-            <item.icon size={19} />
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <WorkspaceMobileNav tripId={trip.id} />
     </div>
   );
 }

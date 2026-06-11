@@ -33,6 +33,33 @@ export function buildTripDateRange(startDate: string | null, endDate: string | n
   return dates;
 }
 
+export function normalizeTripDaysForRange<
+  T extends { date: string; day_number: number | null },
+>(
+  days: T[],
+  startDate: string | null,
+  endDate: string | null,
+  createMissingDay: (date: string, dayNumber: number) => T,
+): T[] {
+  const dates = buildTripDateRange(startDate, endDate);
+  const daysByDate = new Map(days.map((day) => [day.date, day]));
+
+  return dates.map((date, index) => {
+    const day = daysByDate.get(date);
+    return day
+      ? { ...day, day_number: index + 1 }
+      : createMissingDay(date, index + 1);
+  });
+}
+
+export function generatedTripDayId(date: string) {
+  return `generated-trip-day:${date}`;
+}
+
+export function isGeneratedTripDayId(dayId: string) {
+  return dayId.startsWith("generated-trip-day:");
+}
+
 export function validateTripCreationDates(startDate: string | null, endDate: string | null): ValidationResult {
   if (!startDate || !endDate) {
     return {
@@ -49,4 +76,8 @@ export function validateTripCreationDates(startDate: string | null, endDate: str
   }
 
   return { ok: true };
+}
+
+export function getNextStopNumber(dayId: string, scheduleItems: Array<{ trip_day_id: string }>) {
+  return scheduleItems.filter((item) => item.trip_day_id === dayId).length + 1;
 }
