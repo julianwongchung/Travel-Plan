@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useTransition, type CSSProperties } from "react";
+import {
+  useState,
+  useTransition,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   closestCenter,
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   TouchSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type PointerSensorOptions,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -19,7 +27,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MapPin, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { removeScheduleItem, reorderScheduleItems } from "@/lib/actions/trips";
 import type { ScheduleItem } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
@@ -46,17 +54,47 @@ function renumber(items: ScheduleItem[]) {
   }));
 }
 
+class NonTouchPointerSensor extends PointerSensor {
+  static activators = [{
+    eventName: "onPointerDown" as const,
+    handler: (
+      { nativeEvent: event }: ReactPointerEvent,
+      { onActivation }: PointerSensorOptions,
+    ) => {
+      if (event.pointerType === "touch" || !event.isPrimary || event.button !== 0) {
+        return false;
+      }
+
+      onActivation?.({ event });
+      return true;
+    },
+  }];
+}
+
+const itineraryCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
+};
+
 function SortableScheduleItem({
+  canMoveDown,
+  canMoveUp,
   editable,
   index,
   isPending,
   item,
+  onMoveDown,
+  onMoveUp,
   tripId,
 }: {
+  canMoveDown: boolean;
+  canMoveUp: boolean;
   editable: boolean;
   index: number;
   isPending: boolean;
   item: ScheduleItem;
+  onMoveDown: () => void;
+  onMoveUp: () => void;
   tripId: string;
 }) {
   const {
@@ -137,6 +175,29 @@ function SortableScheduleItem({
           ) : null}
         </div>
       </div>
+
+      {editable ? (
+        <div className="mt-1 flex justify-end gap-1 border-t border-[var(--border)] pt-1 sm:hidden">
+          <button
+            type="button"
+            aria-label={`Move ${item.title} up`}
+            disabled={isPending || !canMoveUp}
+            onClick={onMoveUp}
+            className="ios-pressable grid size-11 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--card)] disabled:opacity-30"
+          >
+            <ChevronUp size={18} />
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${item.title} down`}
+            disabled={isPending || !canMoveDown}
+            onClick={onMoveDown}
+            className="ios-pressable grid size-11 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--card)] disabled:opacity-30"
+          >
+            <ChevronDown size={18} />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -155,24 +216,22 @@ export function ReorderableScheduleList({
   const [orderedItems, setOrderedItems] = useState(() => ordered(items));
   const [isPending, startTransition] = useTransition();
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+    useSensor(NonTouchPointerSensor, {
+      activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 150, tolerance: 6 },
+      activationConstraint: { distance: 4 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
 
-  function handleDragEnd({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return;
-
+  function moveItem(activeId: string, overId: string) {
     const previousItems = orderedItems;
-    const activeIndex = orderedItems.findIndex((item) => item.id === active.id);
-    const overIndex = orderedItems.findIndex((item) => item.id === over.id);
-    if (activeIndex < 0 || overIndex < 0) return;
+    const activeIndex = orderedItems.findIndex((item) => item.id === activeId);
+    const overIndex = orderedItems.findIndex((item) => item.id === overId);
+    if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return;
 
     const nextItems = renumber(arrayMove(orderedItems, activeIndex, overIndex));
     setOrderedItems(nextItems);
@@ -190,11 +249,23 @@ export function ReorderableScheduleList({
     });
   }
 
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over) return;
+    moveItem(String(active.id), String(over.id));
+  }
+
+  function moveBy(index: number, offset: -1 | 1) {
+    const target = orderedItems[index + offset];
+    const item = orderedItems[index];
+    if (!item || !target) return;
+    moveItem(item.id, target.id);
+  }
+
   return (
     <DndContext
       id={`itinerary-${tripDayId}`}
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={itineraryCollisionDetection}
       onDragEnd={handleDragEnd}
     >
       <SortableContext
@@ -205,7 +276,7 @@ export function ReorderableScheduleList({
           role="list"
           aria-label="Itinerary stops"
           aria-busy={isPending}
-          className="grid min-w-0 gap-3"
+          className="grid min-w-0 gap-3 pb-24 xl:pb-0"
         >
           {orderedItems.map((item, index) => (
             <SortableScheduleItem
@@ -213,8 +284,12 @@ export function ReorderableScheduleList({
               tripId={tripId}
               item={item}
               index={index}
+              canMoveUp={index > 0}
+              canMoveDown={index < orderedItems.length - 1}
               editable={editable}
               isPending={isPending}
+              onMoveUp={() => moveBy(index, -1)}
+              onMoveDown={() => moveBy(index, 1)}
             />
           ))}
         </div>
