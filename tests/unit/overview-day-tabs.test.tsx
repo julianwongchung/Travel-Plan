@@ -148,12 +148,20 @@ describe("OverviewDayTabs", () => {
       />,
     );
 
-    expect(container.querySelector('[data-itinerary-category="flight"]')?.className).toContain("border-blue");
-    expect(container.querySelector('[data-itinerary-category="lodging"]')?.className).toContain("border-violet");
-    expect(container.querySelector('[data-itinerary-category="transport"]')?.className).toContain("border-cyan");
-    expect(container.querySelector('[data-itinerary-category="food"]')?.className).toContain("border-orange");
-    expect(container.querySelector('[data-itinerary-category="activity"]')?.className).toContain("border-emerald");
-    expect(container.querySelector('[data-itinerary-category="other"]')?.className).toContain("border-slate");
+    const flightCard = container.querySelector<HTMLElement>('[data-itinerary-category="flight"]');
+    const lodgingCard = container.querySelector<HTMLElement>('[data-itinerary-category="lodging"]');
+    const transportCard = container.querySelector<HTMLElement>('[data-itinerary-category="transport"]');
+    const foodCard = container.querySelector<HTMLElement>('[data-itinerary-category="food"]');
+    const activityCard = container.querySelector<HTMLElement>('[data-itinerary-category="activity"]');
+    const otherCard = container.querySelector<HTMLElement>('[data-itinerary-category="other"]');
+
+    expect(flightCard?.className).toContain("itinerary-category-card");
+    expect(flightCard?.style.getPropertyValue("--itinerary-accent")).toBe("#2563eb");
+    expect(lodgingCard?.style.getPropertyValue("--itinerary-accent")).toBe("#7c3aed");
+    expect(transportCard?.style.getPropertyValue("--itinerary-accent")).toBe("#0891b2");
+    expect(foodCard?.style.getPropertyValue("--itinerary-accent")).toBe("#f97316");
+    expect(activityCard?.style.getPropertyValue("--itinerary-accent")).toBe("#16a34a");
+    expect(otherCard?.style.getPropertyValue("--itinerary-accent")).toBe("#64748b");
 
     expect(screen.getByText("Flight")).toBeTruthy();
     expect(screen.getByText("Lodging")).toBeTruthy();
@@ -162,7 +170,6 @@ describe("OverviewDayTabs", () => {
     expect(screen.getAllByText("Activity")).toHaveLength(1);
     expect(screen.getByText("Other")).toBeTruthy();
 
-    const transportCard = container.querySelector('[data-itinerary-category="transport"]');
     expect(transportCard?.textContent).toContain("Airport hotel shuttle");
 
     const editLink = screen.getByRole("link", { name: "Edit Morning flight" });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import {
   Bed,
   BusFront,
@@ -41,49 +41,49 @@ const categoryStyles = {
   flight: {
     label: "Flight",
     icon: Plane,
-    card: "border-blue-200/80 bg-blue-50/75 dark:border-blue-400/20 dark:bg-blue-500/10",
+    accent: "#2563eb",
     badge: "border-blue-200/80 bg-blue-600 text-white dark:border-blue-400/20",
     dot: "bg-blue-600",
   },
   lodging: {
     label: "Lodging",
     icon: Bed,
-    card: "border-violet-200/80 bg-violet-50/75 dark:border-violet-400/20 dark:bg-violet-500/10",
+    accent: "#7c3aed",
     badge: "border-violet-200/80 bg-violet-600 text-white dark:border-violet-400/20",
     dot: "bg-violet-600",
   },
   activity: {
     label: "Activity",
     icon: Sparkles,
-    card: "border-emerald-200/80 bg-emerald-50/75 dark:border-emerald-400/20 dark:bg-emerald-500/10",
+    accent: "#16a34a",
     badge: "border-emerald-200/80 bg-emerald-600 text-white dark:border-emerald-400/20",
     dot: "bg-emerald-600",
   },
   food: {
     label: "Food",
     icon: Utensils,
-    card: "border-orange-200/80 bg-orange-50/75 dark:border-orange-400/20 dark:bg-orange-500/10",
+    accent: "#f97316",
     badge: "border-orange-200/80 bg-orange-500 text-white dark:border-orange-400/20",
     dot: "bg-orange-500",
   },
   transport: {
     label: "Transport",
     icon: BusFront,
-    card: "border-cyan-200/80 bg-cyan-50/75 dark:border-cyan-400/20 dark:bg-cyan-500/10",
+    accent: "#0891b2",
     badge: "border-cyan-200/80 bg-cyan-600 text-white dark:border-cyan-400/20",
     dot: "bg-cyan-600",
   },
   other: {
     label: "Other",
     icon: CircleEllipsis,
-    card: "border-slate-200/80 bg-slate-50/75 dark:border-slate-400/20 dark:bg-slate-500/10",
+    accent: "#64748b",
     badge: "border-slate-200/80 bg-slate-600 text-white dark:border-slate-400/20",
     dot: "bg-slate-500",
   },
 } satisfies Record<ItemCategory, {
   label: string;
   icon: typeof Plane;
-  card: string;
+  accent: string;
   badge: string;
   dot: string;
 }>;
@@ -189,7 +189,8 @@ export function OverviewDayTabs({
                       <article
                         key={item.id}
                         data-itinerary-category={category}
-                        className={`content-surface relative grid min-w-0 gap-3 rounded-[20px] p-4 pr-14 sm:rounded-[22px] sm:p-5 sm:pr-16 ${kind.card}`}
+                        className="content-surface itinerary-category-card relative grid min-w-0 gap-3 rounded-[20px] p-4 pr-14 sm:rounded-[22px] sm:p-5 sm:pr-16"
+                        style={{ "--itinerary-accent": kind.accent } as CSSProperties}
                       >
                         <span className={`absolute -left-[19px] top-6 size-3.5 rounded-full ring-4 ring-[var(--background)] sm:-left-[25px] sm:size-4 ${kind.dot}`} />
                         <p className="text-sm font-medium text-[var(--muted-foreground)]">{item.time_block ?? "Time TBD"}</p>
