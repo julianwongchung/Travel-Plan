@@ -27,9 +27,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, ChevronUp, GripVertical, MapPin, Trash2 } from "lucide-react";
+import { Bed, ChevronDown, ChevronUp, CircleEllipsis, GripVertical, MapPin, Plane, Sparkles, Trash2, Utensils, BusFront } from "lucide-react";
 import { removeScheduleItem, reorderScheduleItems } from "@/lib/actions/trips";
 import type { ScheduleItem } from "@/lib/db/types";
+import { scheduleItemCategory } from "@/lib/utils/schedule-item-plan";
 import { Button } from "@/components/ui/button";
 
 function webLink(value: string | null) {
@@ -76,6 +77,15 @@ const itineraryCollisionDetection: CollisionDetection = (args) => {
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
 };
 
+const categoryStyles = {
+  flight: { label: "Flight", icon: Plane, accent: "#2563eb", badge: "bg-blue-600 text-white" },
+  lodging: { label: "Lodging", icon: Bed, accent: "#7c3aed", badge: "bg-violet-600 text-white" },
+  activity: { label: "Activity", icon: Sparkles, accent: "#16a34a", badge: "bg-emerald-600 text-white" },
+  food: { label: "Food", icon: Utensils, accent: "#f97316", badge: "bg-orange-500 text-white" },
+  transport: { label: "Transport", icon: BusFront, accent: "#0891b2", badge: "bg-cyan-600 text-white" },
+  other: { label: "Other", icon: CircleEllipsis, accent: "#64748b", badge: "bg-slate-600 text-white" },
+};
+
 function SortableScheduleItem({
   canMoveDown,
   canMoveUp,
@@ -109,11 +119,16 @@ function SortableScheduleItem({
     disabled: !editable || isPending,
   });
   const mapLink = webLink(item.notes);
-  const style: CSSProperties = {
+  const category = scheduleItemCategory(item);
+  const categoryStyle = categoryStyles[category];
+  const CategoryIcon = categoryStyle.icon;
+  const detail = item.description ?? item.time_block ?? (mapLink ? null : item.notes);
+  const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 20 : undefined,
-  };
+    "--itinerary-accent": categoryStyle.accent,
+  } as CSSProperties;
 
   return (
     <div
@@ -121,7 +136,7 @@ function SortableScheduleItem({
       style={style}
       role="listitem"
       data-schedule-item-id={item.id}
-      className={`relative rounded-[18px] border border-[var(--border)] bg-[var(--muted)] p-2.5 transition-[opacity,box-shadow] ${
+      className={`itinerary-category-card relative rounded-[18px] border p-2.5 transition-[opacity,box-shadow] ${
         isDragging ? "opacity-70 shadow-xl" : "opacity-100"
       }`}
     >
@@ -133,7 +148,7 @@ function SortableScheduleItem({
             disabled={isPending}
             {...attributes}
             {...listeners}
-            className="ios-pressable grid size-11 shrink-0 touch-none cursor-grab place-items-center rounded-full text-[var(--muted-foreground)] active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
+            className="itinerary-drag-handle ios-pressable grid size-11 shrink-0 cursor-grab place-items-center rounded-full text-[var(--muted-foreground)] active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
           >
             <GripVertical size={18} />
           </button>
@@ -143,9 +158,21 @@ function SortableScheduleItem({
           {index + 1}
         </span>
 
-        <p className="min-w-0 flex-1 break-words text-sm font-semibold text-[var(--foreground)]">
-          {item.title}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-sm font-semibold text-[var(--foreground)]">{item.title}</p>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${categoryStyle.badge}`}>
+              <CategoryIcon size={11} />
+              {categoryStyle.label}
+            </span>
+            {item.time_block ? (
+              <span className="text-xs font-medium text-[var(--muted-foreground)]">{item.time_block}</span>
+            ) : null}
+          </div>
+          {detail && detail !== item.time_block ? (
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">{detail}</p>
+          ) : null}
+        </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
           {mapLink ? (
@@ -276,7 +303,7 @@ export function ReorderableScheduleList({
           role="list"
           aria-label="Itinerary stops"
           aria-busy={isPending}
-          className="grid min-w-0 gap-3 pb-24 xl:pb-0"
+          className="grid min-w-0 gap-3"
         >
           {orderedItems.map((item, index) => (
             <SortableScheduleItem

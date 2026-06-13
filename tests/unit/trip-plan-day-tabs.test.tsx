@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const routerReplace = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: routerReplace }),
+}));
+
 import { TripPlanDayTabs } from "@/components/trip/trip-plan-day-tabs";
 import type { ScheduleItem, TripDay } from "@/lib/db/types";
 
@@ -64,6 +71,10 @@ const scheduleItems: ScheduleItem[] = [
 ];
 
 describe("TripPlanDayTabs", () => {
+  afterEach(() => {
+    cleanup();
+    routerReplace.mockClear();
+  });
   it("switches itinerary content without hash navigation or page scrolling", () => {
     render(
       <TripPlanDayTabs
@@ -85,6 +96,44 @@ describe("TripPlanDayTabs", () => {
 
     expect(window.scrollY).toBe(scrollBefore);
     expect(screen.queryByText("Airport transfer")).toBeNull();
+    expect(screen.getByText("Museum visit")).toBeTruthy();
+  });
+
+  it("adds a plan to the currently selected day", () => {
+    const { container } = render(
+      <TripPlanDayTabs
+        tripId="trip-1"
+        days={days}
+        scheduleItems={scheduleItems}
+        editable
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "6/14 D2" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Place" }));
+
+    expect(container.querySelector('input[name="trip_day_id"]')?.getAttribute("value")).toBe("day-2");
+    expect(container.querySelector('input[name="trip_day_date"]')?.getAttribute("value")).toBe("2026-06-14");
+    expect(container.querySelector('input[name="trip_day_number"]')?.getAttribute("value")).toBe("2");
+    expect(routerReplace).toHaveBeenCalledWith(
+      `${window.location.pathname}?day=2026-06-14`,
+      { scroll: false },
+    );
+  });
+
+  it("restores a selected day after server revalidation", () => {
+    render(
+      <TripPlanDayTabs
+        tripId="trip-1"
+        days={days}
+        scheduleItems={scheduleItems}
+        editable
+        initialSelectedDayId="day-2"
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "6/14 D2" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Museum visit")).toBeTruthy();
   });
 });

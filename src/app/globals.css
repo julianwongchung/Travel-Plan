@@ -193,6 +193,10 @@ a {
     inset 0 1px 0 color-mix(in srgb, var(--itinerary-accent) 16%, transparent);
 }
 
+.itinerary-drag-handle {
+  touch-action: none;
+}
+
 .ios-pressed,
 .ios-pressable {
   transition: transform 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease;

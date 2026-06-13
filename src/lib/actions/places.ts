@@ -19,6 +19,8 @@ export async function createPlace(tripId: string, formData: FormData) {
     p_notes: nullable(formData, "notes"),
     p_priority: prioritySchema.parse(value(formData, "priority", "nice-to-have")) as PlacePriority,
     p_rating: nullable(formData, "rating") ? Number(value(formData, "rating")) : null,
+    p_planned_date: nullable(formData, "planned_date"),
+    p_planned_time: nullable(formData, "planned_time"),
   });
 
   if (error) throw new Error(error.message);

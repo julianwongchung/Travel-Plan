@@ -75,7 +75,7 @@ export function TripShell({
         </div>
       </header>
 
-      <main className="mx-auto w-full min-w-0 max-w-7xl px-3 py-5 pb-32 sm:px-5 sm:py-6 xl:ml-80 xl:px-8 xl:pb-10">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-7xl px-3 py-5 pb-32 sm:px-5 sm:py-6 xl:ml-80 xl:w-auto xl:max-w-[calc(100%-20rem)] xl:px-8 xl:pb-10">{children}</main>
 
       <WorkspaceMobileNav tripId={trip.id} />
     </div>

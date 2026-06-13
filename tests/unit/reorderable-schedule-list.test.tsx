@@ -225,7 +225,7 @@ describe("ReorderableScheduleList", () => {
 
     const handles = screen.getAllByRole("button", { name: /Reorder/ });
     expect(handles).toHaveLength(3);
-    expect(handles.every((handle) => handle.className.includes("touch-none"))).toBe(true);
+    expect(handles.every((handle) => handle.className.includes("itinerary-drag-handle"))).toBe(true);
     expect(container.querySelector("[draggable=true]")).toBeNull();
     expect(container.querySelector("[data-sortable-items]")?.getAttribute("data-sortable-items"))
       .toBe("item-1,item-2,item-3");
@@ -237,7 +237,7 @@ describe("ReorderableScheduleList", () => {
     expect(screen.getByRole("button", { name: "Remove Hotel" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Move Hotel up" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Move Museum down" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByRole("list", { name: "Itinerary stops" }).className).toContain("pb-24");
+    expect(screen.getByRole("list", { name: "Itinerary stops" }).className).not.toContain("pb-24");
   });
 
   it("leaves touch events to TouchSensor and uses pointer-position collisions", () => {

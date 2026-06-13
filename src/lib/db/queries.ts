@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { ExpenseSplit, Place, Role, ScheduleItem, Traveler, Trip, TripDay, TripExpense, TripInvitation, TripMember } from "@/lib/db/types";
+import { isMissingLogisticsTableError } from "@/lib/utils/trip-logistics";
+import type { ExpenseSplit, Place, Role, ScheduleItem, Traveler, Trip, TripDay, TripExpense, TripFlight, TripHotel, TripInvitation, TripMember } from "@/lib/db/types";
 
 export type TripContext = {
   trip: Trip;
@@ -86,6 +87,20 @@ export async function getPlaces(tripId: string, includeDeleted = false) {
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data ?? []) as Place[];
+}
+
+export async function getTripLogistics(tripId: string) {
+  const supabase = await createClient();
+  const [{ data: hotels, error: hotelError }, { data: flights, error: flightError }] = await Promise.all([
+    supabase.from("trip_hotels").select("*").eq("trip_id", tripId).is("deleted_at", null).order("check_in_date"),
+    supabase.from("trip_flights").select("*").eq("trip_id", tripId).is("deleted_at", null).order("flight_date").order("flight_time"),
+  ]);
+  if (hotelError && !isMissingLogisticsTableError(hotelError.message)) throw new Error(hotelError.message);
+  if (flightError && !isMissingLogisticsTableError(flightError.message)) throw new Error(flightError.message);
+  return {
+    hotels: (hotels ?? []) as TripHotel[],
+    flights: (flights ?? []) as TripFlight[],
+  };
 }
 
 export async function getExpenseData(tripId: string) {

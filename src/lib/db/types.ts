@@ -97,6 +97,40 @@ export type Place = {
   notes: string | null;
   priority: PlacePriority | null;
   rating: number | null;
+  planned_date: string | null;
+  planned_time: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type TripHotel = {
+  id: string;
+  trip_id: string;
+  name: string;
+  location: string;
+  check_in_date: string;
+  check_out_date: string;
+  notes: string | null;
+  created_by: string;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type TripFlight = {
+  id: string;
+  trip_id: string;
+  flight_number: string;
+  flight_date: string;
+  flight_time: string;
+  passenger_name: string;
+  departure: string;
+  arrival: string;
+  notes: string | null;
+  created_by: string;
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;
@@ -143,6 +177,8 @@ export type Database = {
       trip_days: Table<TripDay>;
       schedule_items: Table<ScheduleItem>;
       places: Table<Place>;
+      trip_hotels: Table<TripHotel>;
+      trip_flights: Table<TripFlight>;
       trip_expenses: Table<TripExpense>;
       expense_splits: Table<ExpenseSplit>;
     };
@@ -160,10 +196,14 @@ export type Database = {
       remove_trip_member: { Args: { p_member_id: string }; Returns: void };
       update_trip_member_role: { Args: { p_member_id: string; p_role: "editor" | "viewer" }; Returns: void };
       cancel_trip_invitation: { Args: { p_invitation_id: string }; Returns: void };
-      create_place: { Args: { p_trip_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null }; Returns: string };
+      create_place: { Args: { p_trip_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null; p_planned_date: string | null; p_planned_time: string | null }; Returns: string };
       update_place: { Args: { p_place_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null }; Returns: void };
       soft_delete_place: { Args: { p_place_id: string }; Returns: void };
       restore_place: { Args: { p_place_id: string }; Returns: void };
+      create_trip_hotel: { Args: { p_trip_id: string; p_name: string; p_location: string; p_check_in_date: string; p_check_out_date: string; p_notes: string | null }; Returns: string };
+      soft_delete_trip_hotel: { Args: { p_hotel_id: string }; Returns: void };
+      create_trip_flight: { Args: { p_trip_id: string; p_flight_number: string; p_flight_date: string; p_flight_time: string; p_passenger_name: string; p_departure: string; p_arrival: string; p_notes: string | null }; Returns: string };
+      soft_delete_trip_flight: { Args: { p_flight_id: string }; Returns: void };
       create_expense: { Args: { p_trip_id: string; p_category: string | null; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json }; Returns: string };
       update_expense: { Args: { p_expense_id: string; p_category: string | null; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json }; Returns: void };
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: void };

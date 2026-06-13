@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Hotel, MapPin } from "lucide-react";
 import type { ScheduleItem, TripDay } from "@/lib/db/types";
-import { getNextStopNumber, isGeneratedTripDayId } from "@/lib/utils/trip-days";
-import { AddItineraryPlaceForm } from "@/components/trip/add-itinerary-place-form";
+import { isGeneratedTripDayId } from "@/lib/utils/trip-days";
+import { AddItineraryPlan } from "@/components/trip/add-itinerary-plan";
 import { ReorderableScheduleList } from "@/components/trip/reorderable-schedule-list";
 import { TripDaySelector } from "@/components/trip/trip-day-selector";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,13 +23,20 @@ export function TripPlanDayTabs({
   days,
   scheduleItems,
   editable,
+  initialSelectedDayId,
 }: {
   tripId: string;
   days: TripDay[];
   scheduleItems: ScheduleItem[];
   editable: boolean;
+  initialSelectedDayId?: string;
 }) {
-  const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
+  const router = useRouter();
+  const [selectedDayId, setSelectedDayId] = useState(
+    initialSelectedDayId && days.some((day) => day.id === initialSelectedDayId)
+      ? initialSelectedDayId
+      : (days[0]?.id ?? ""),
+  );
   const effectiveSelectedDayId = days.some((day) => day.id === selectedDayId)
     ? selectedDayId
     : (days[0]?.id ?? "");
@@ -38,12 +46,20 @@ export function TripPlanDayTabs({
     ? scheduleItems.filter((item) => item.trip_day_id === selectedDay.id)
     : [];
 
+  function selectDay(dayId: string) {
+    setSelectedDayId(dayId);
+    const day = days.find((candidate) => candidate.id === dayId);
+    if (!day) return;
+
+    router.replace(`${window.location.pathname}?day=${day.date}`, { scroll: false });
+  }
+
   return (
     <div className="grid gap-5">
       <TripDaySelector
         days={days}
         selectedDayId={effectiveSelectedDayId}
-        onSelectDay={setSelectedDayId}
+        onSelectDay={selectDay}
       />
 
       <Card>
@@ -84,12 +100,11 @@ export function TripPlanDayTabs({
               </div>
 
               {editable ? (
-                <AddItineraryPlaceForm
+                <AddItineraryPlan
                   tripId={tripId}
                   dayId={isGeneratedTripDayId(selectedDay.id) ? null : selectedDay.id}
                   dayDate={selectedDay.date}
                   dayNumber={selectedDay.day_number ?? selectedDayIndex + 1}
-                  nextStopNumber={getNextStopNumber(selectedDay.id, scheduleItems)}
                 />
               ) : null}
 

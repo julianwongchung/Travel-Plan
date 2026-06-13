@@ -6,8 +6,15 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { IOSPageHeader } from "@/components/ui/ios-page-header";
 import { generatedTripDayId, normalizeTripDaysForRange } from "@/lib/utils/trip-days";
 
-export default async function TripPlanPage({ params }: { params: Promise<{ tripId: string }> }) {
+export default async function TripPlanPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ day?: string }>;
+}) {
   const { tripId } = await params;
+  const selectedDayDate = (await searchParams).day;
   const [{ trip, role }, data] = await Promise.all([getTripContext(tripId), getOverviewData(tripId)]);
   const editable = canEdit(role);
   const expenseSummary = summarizeByCurrency(data.expenses);
@@ -29,6 +36,7 @@ export default async function TripPlanPage({ params }: { params: Promise<{ tripI
     }),
   );
   const nextDay = currentDays.find((day) => new Date(`${day.date}T00:00:00`) >= new Date()) ?? currentDays[0];
+  const initialSelectedDayId = currentDays.find((day) => day.date === selectedDayDate)?.id;
 
   return (
     <div className="grid min-w-0 gap-6 sm:gap-7">
@@ -64,6 +72,7 @@ export default async function TripPlanPage({ params }: { params: Promise<{ tripI
         days={currentDays}
         scheduleItems={data.scheduleItems}
         editable={editable}
+        initialSelectedDayId={initialSelectedDayId}
       />
     </div>
   );

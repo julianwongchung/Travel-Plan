@@ -11,6 +11,7 @@ import { StatusBadge as UIStatusBadge } from "@/components/ui/status-badge";
 import { RoleBadge } from "@/components/trip/role-badge";
 import { StatusBadge } from "@/components/trip/status-badge";
 import { WorkspaceMobileNav } from "@/components/layout/workspace-mobile-nav";
+import { TripCardActions } from "@/components/trips/trip-card-actions";
 import type { TripListItem } from "@/lib/db/queries";
 
 function TripCard({ trip }: { trip: TripListItem }) {
@@ -50,7 +51,11 @@ function TripCard({ trip }: { trip: TripListItem }) {
                 </Button>
               </form>
             ) : (
-              <ButtonLink className="w-full sm:w-auto" href={`/trips/${trip.id}/overview`}>Open</ButtonLink>
+              trip.role === "owner" ? (
+                <TripCardActions tripId={trip.id} memberCount={trip.member_count} />
+              ) : (
+                <ButtonLink className="w-full sm:w-auto" href={`/trips/${trip.id}/overview`}>Open</ButtonLink>
+              )
             )}
           </div>
         </div>
