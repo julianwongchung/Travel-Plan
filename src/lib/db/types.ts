@@ -145,6 +145,9 @@ export type TripExpense = {
   currency: Currency;
   total_amount: number;
   paid_by_traveler_id: string | null;
+  expense_date: string | null;
+  expense_time: string | null;
+  notes: string | null;
   deleted_at: string | null;
   deleted_by: string | null;
   created_at: string;
@@ -204,8 +207,8 @@ export type Database = {
       soft_delete_trip_hotel: { Args: { p_hotel_id: string }; Returns: void };
       create_trip_flight: { Args: { p_trip_id: string; p_flight_number: string; p_flight_date: string; p_flight_time: string; p_passenger_name: string; p_departure: string; p_arrival: string; p_notes: string | null }; Returns: string };
       soft_delete_trip_flight: { Args: { p_flight_id: string }; Returns: void };
-      create_expense: { Args: { p_trip_id: string; p_category: string | null; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json }; Returns: string };
-      update_expense: { Args: { p_expense_id: string; p_category: string | null; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json }; Returns: void };
+      create_expense: { Args: { p_trip_id: string; p_category: string; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json; p_expense_date: string | null; p_expense_time: string | null; p_notes: string | null }; Returns: string };
+      update_expense: { Args: { p_expense_id: string; p_category: string; p_expense_name: string; p_currency: Currency; p_total_amount: number; p_paid_by_traveler_id: string | null; p_splits: Json; p_expense_date: string | null; p_expense_time: string | null; p_notes: string | null }; Returns: void };
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: void };
       restore_expense: { Args: { p_expense_id: string }; Returns: void };
       delete_schedule_item: { Args: { p_schedule_item_id: string }; Returns: void };

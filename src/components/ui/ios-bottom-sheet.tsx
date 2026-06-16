@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { GlassButton } from "@/components/ui/glass-button";
 
@@ -15,9 +16,9 @@ export function IOSBottomSheet({
   children: ReactNode;
   onClose: () => void;
 }) {
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[110] flex min-w-0 items-end justify-center overflow-hidden bg-black/30 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={onClose}>
       <section
         role="dialog"
@@ -34,6 +35,7 @@ export function IOSBottomSheet({
         </div>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

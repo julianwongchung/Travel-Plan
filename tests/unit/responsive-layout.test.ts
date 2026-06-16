@@ -34,4 +34,25 @@ describe("responsive layout contracts", () => {
     expect(expensesPage).toContain("lg:hidden");
     expect(expensesPage).toContain("hidden max-w-full overflow-x-auto lg:block");
   });
+
+  it("places the MYR expense summary above expense entry controls", () => {
+    const summaryIndex = expensesPage.indexOf("<ExpenseTotalSummary");
+    const expenseFormIndex = expensesPage.indexOf("<AddExpenseSheet");
+
+    expect(summaryIndex).toBeGreaterThan(-1);
+    expect(expenseFormIndex).toBeGreaterThan(summaryIndex);
+    expect(expensesPage).not.toContain("without converting currencies");
+  });
+
+  it("uses the responsive expense sheet instead of an inline creation form", () => {
+    expect(expensesPage).toContain("<AddExpenseSheet");
+    expect(expensesPage).not.toContain("<form action={createExpense");
+  });
+
+  it("shows a category donut after the MYR total summary", () => {
+    const summaryIndex = expensesPage.indexOf("<ExpenseTotalSummary");
+    const chartIndex = expensesPage.indexOf("<ExpenseCategoryChart");
+
+    expect(chartIndex).toBeGreaterThan(summaryIndex);
+  });
 });

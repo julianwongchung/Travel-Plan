@@ -7,6 +7,7 @@ import type { Currency } from "@/lib/db/types";
 import { calculateEqualSplits, validateCustomSplits, type SplitInput } from "@/lib/utils/expense-calculations";
 
 const currencySchema = z.enum(["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD"]);
+const categorySchema = z.enum(["food", "transport", "purchase"]).or(z.string().trim().min(1));
 
 function parseSplits(formData: FormData, total: number): SplitInput[] {
   const travelerIds = formData.getAll("traveler_ids").map((item) => String(item));
@@ -33,12 +34,15 @@ export async function createExpense(tripId: string, formData: FormData) {
   const splits = parseSplits(formData, total);
   const { error } = await supabase.rpc("create_expense", {
     p_trip_id: tripId,
-    p_category: nullable(formData, "category"),
+    p_category: categorySchema.parse(value(formData, "category")),
     p_expense_name: value(formData, "expense_name"),
     p_currency: currencySchema.parse(value(formData, "currency", "MYR")) as Currency,
     p_total_amount: total,
     p_paid_by_traveler_id: nullable(formData, "paid_by_traveler_id"),
     p_splits: splits.map((split) => ({ traveler_id: split.travelerId, amount: split.amount })),
+    p_expense_date: nullable(formData, "expense_date"),
+    p_expense_time: nullable(formData, "expense_time"),
+    p_notes: nullable(formData, "notes"),
   });
 
   if (error) throw new Error(error.message);
@@ -51,12 +55,15 @@ export async function updateExpense(tripId: string, expenseId: string, formData:
   const splits = parseSplits(formData, total);
   const { error } = await supabase.rpc("update_expense", {
     p_expense_id: expenseId,
-    p_category: nullable(formData, "category"),
+    p_category: categorySchema.parse(value(formData, "category")),
     p_expense_name: value(formData, "expense_name"),
     p_currency: currencySchema.parse(value(formData, "currency", "MYR")) as Currency,
     p_total_amount: total,
     p_paid_by_traveler_id: nullable(formData, "paid_by_traveler_id"),
     p_splits: splits.map((split) => ({ traveler_id: split.travelerId, amount: split.amount })),
+    p_expense_date: nullable(formData, "expense_date"),
+    p_expense_time: nullable(formData, "expense_time"),
+    p_notes: nullable(formData, "notes"),
   });
 
   if (error) throw new Error(error.message);

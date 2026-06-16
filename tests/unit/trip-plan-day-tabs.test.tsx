@@ -100,7 +100,7 @@ describe("TripPlanDayTabs", () => {
   });
 
   it("adds a plan to the currently selected day", () => {
-    const { container } = render(
+    render(
       <TripPlanDayTabs
         tripId="trip-1"
         days={days}
@@ -113,9 +113,10 @@ describe("TripPlanDayTabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ Add Plan" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Place" }));
 
-    expect(container.querySelector('input[name="trip_day_id"]')?.getAttribute("value")).toBe("day-2");
-    expect(container.querySelector('input[name="trip_day_date"]')?.getAttribute("value")).toBe("2026-06-14");
-    expect(container.querySelector('input[name="trip_day_number"]')?.getAttribute("value")).toBe("2");
+    const dialog = screen.getByRole("dialog", { name: "Add Place" });
+    expect(dialog.querySelector('input[name="trip_day_id"]')?.getAttribute("value")).toBe("day-2");
+    expect(dialog.querySelector('input[name="trip_day_date"]')?.getAttribute("value")).toBe("2026-06-14");
+    expect(dialog.querySelector('input[name="trip_day_number"]')?.getAttribute("value")).toBe("2");
     expect(routerReplace).toHaveBeenCalledWith(
       `${window.location.pathname}?day=2026-06-14`,
       { scroll: false },

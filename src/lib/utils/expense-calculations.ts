@@ -28,3 +28,58 @@ export function summarizeByCurrency<T extends { currency: string; total_amount: 
     return summary;
   }, {});
 }
+
+export function calculateEstimatedMyrTotal<T extends { currency: string; total_amount: number }>(
+  expenses: T[],
+  rates: Readonly<Record<string, number>> | null,
+) {
+  let totalMyr = 0;
+
+  for (const expense of expenses) {
+    const amount = Number(expense.total_amount);
+    const rate = expense.currency === "MYR" ? 1 : rates?.[expense.currency];
+
+    if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate === undefined || rate <= 0) {
+      return null;
+    }
+
+    totalMyr += amount / rate;
+  }
+
+  return Math.round((totalMyr + Number.EPSILON) * 100) / 100;
+}
+
+function normalizedExpenseCategory(category: string | null | undefined) {
+  const normalized = category?.trim().toLowerCase();
+  return normalized === "food" || normalized === "transport" || normalized === "purchase"
+    ? normalized
+    : "other";
+}
+
+export function calculateEstimatedMyrByCategory<
+  T extends { category?: string | null; currency: string; total_amount: number },
+>(
+  expenses: T[],
+  rates: Readonly<Record<string, number>> | null,
+) {
+  const categoryTotals: Record<string, number> = {};
+
+  for (const expense of expenses) {
+    const amount = Number(expense.total_amount);
+    const rate = expense.currency === "MYR" ? 1 : rates?.[expense.currency];
+
+    if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate === undefined || rate <= 0) {
+      return null;
+    }
+
+    const category = normalizedExpenseCategory(expense.category);
+    categoryTotals[category] = (categoryTotals[category] ?? 0) + amount / rate;
+  }
+
+  return Object.fromEntries(
+    Object.entries(categoryTotals).map(([category, total]) => [
+      category,
+      Math.round((total + Number.EPSILON) * 100) / 100,
+    ]),
+  );
+}
