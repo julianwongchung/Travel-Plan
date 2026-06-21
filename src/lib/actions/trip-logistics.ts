@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { throwSafeActionError } from "@/lib/actions/action-errors";
 import { authedClient, value } from "@/lib/actions/helpers";
 import { flightInputSchema, hotelInputSchema } from "@/lib/utils/trip-logistics";
 
@@ -21,7 +22,7 @@ export async function createTripHotel(tripId: string, formData: FormData) {
     p_check_out_date: input.checkOutDate,
     p_notes: input.notes || null,
   });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
   revalidatePath(`/trips/${tripId}/overview`);
 }
@@ -47,7 +48,7 @@ export async function createTripFlight(tripId: string, formData: FormData) {
     p_arrival: input.arrival,
     p_notes: input.notes || null,
   });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
   revalidatePath(`/trips/${tripId}/overview`);
 }
@@ -55,7 +56,7 @@ export async function createTripFlight(tripId: string, formData: FormData) {
 export async function softDeleteTripHotel(tripId: string, hotelId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("soft_delete_trip_hotel", { p_hotel_id: hotelId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
   revalidatePath(`/trips/${tripId}/overview`);
 }
@@ -63,7 +64,7 @@ export async function softDeleteTripHotel(tripId: string, hotelId: string) {
 export async function softDeleteTripFlight(tripId: string, flightId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("soft_delete_trip_flight", { p_flight_id: flightId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
   revalidatePath(`/trips/${tripId}/overview`);
 }

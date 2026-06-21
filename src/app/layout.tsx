@@ -4,7 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 
 export const metadata: Metadata = {
-  title: "Travel OS",
+  title: "GoGoPlan",
   description: "Private-first collaborative travel planning and expenses.",
 };
 

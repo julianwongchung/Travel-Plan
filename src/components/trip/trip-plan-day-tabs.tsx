@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Hotel, MapPin } from "lucide-react";
-import type { ScheduleItem, TripDay } from "@/lib/db/types";
+import type { ScheduleItem, Traveler, TripDay } from "@/lib/db/types";
+import { formatDisplayDate } from "@/lib/utils/date-format";
+import {
+  flightPlanTouchesDate,
+  parseFlightPlanDescription,
+} from "@/lib/utils/schedule-item-plan";
 import { isGeneratedTripDayId } from "@/lib/utils/trip-days";
 import { AddItineraryPlan } from "@/components/trip/add-itinerary-plan";
 import { ReorderableScheduleList } from "@/components/trip/reorderable-schedule-list";
@@ -11,23 +16,30 @@ import { TripDaySelector } from "@/components/trip/trip-day-selector";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 function formatDayHeading(date: string) {
-  return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(`${date}T00:00:00`));
+  return formatDisplayDate(date);
 }
 
 function daySummary(day: TripDay, items: ScheduleItem[]) {
   return [day.route, day.hotel_name, ...items.map((item) => item.title)].filter(Boolean).join(" - ") || "Add the first place";
 }
 
+function flightTouchesDay(item: ScheduleItem, day: TripDay) {
+  const flightPlan = parseFlightPlanDescription(item.description);
+  return flightPlan ? flightPlanTouchesDate(flightPlan, day.date) : false;
+}
+
 export function TripPlanDayTabs({
   tripId,
   days,
   scheduleItems,
+  travelers = [],
   editable,
   initialSelectedDayId,
 }: {
   tripId: string;
   days: TripDay[];
   scheduleItems: ScheduleItem[];
+  travelers?: Traveler[];
   editable: boolean;
   initialSelectedDayId?: string;
 }) {
@@ -42,9 +54,13 @@ export function TripPlanDayTabs({
     : (days[0]?.id ?? "");
   const selectedDayIndex = Math.max(0, days.findIndex((day) => day.id === effectiveSelectedDayId));
   const selectedDay = days[selectedDayIndex];
-  const selectedItems = selectedDay
+  const ownedItems = selectedDay
     ? scheduleItems.filter((item) => item.trip_day_id === selectedDay.id)
     : [];
+  const relatedFlightItems = selectedDay
+    ? scheduleItems.filter((item) => item.trip_day_id !== selectedDay.id && flightTouchesDay(item, selectedDay))
+    : [];
+  const selectedItems = [...ownedItems, ...relatedFlightItems];
 
   function selectDay(dayId: string) {
     setSelectedDayId(dayId);
@@ -88,14 +104,30 @@ export function TripPlanDayTabs({
                     {selectedDay.hotel_link ? <a className="font-semibold text-[var(--primary)]" href={selectedDay.hotel_link}>{selectedDay.hotel_name}</a> : selectedDay.hotel_name}
                   </p>
                 ) : null}
-                {selectedItems.length ? (
+                {ownedItems.length ? (
                   <ReorderableScheduleList
-                    key={`${selectedDay.id}:${selectedItems.map((item) => `${item.id}:${item.sort_order}`).join(",")}`}
+                    key={`${selectedDay.id}:${ownedItems.map((item) => `${item.id}:${item.sort_order}`).join(",")}`}
                     tripId={tripId}
                     tripDayId={selectedDay.id}
-                    items={selectedItems}
+                    items={ownedItems}
                     editable={editable}
+                    travelers={travelers}
                   />
+                ) : null}
+                {relatedFlightItems.length ? (
+                  <div className="grid gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                      Flight details for this day
+                    </p>
+                    <ReorderableScheduleList
+                      key={`${selectedDay.id}:related-flights:${relatedFlightItems.map((item) => item.id).join(",")}`}
+                      tripId={tripId}
+                      tripDayId={selectedDay.id}
+                      items={relatedFlightItems}
+                      editable={false}
+                      travelers={travelers}
+                    />
+                  </div>
                 ) : null}
               </div>
 
@@ -105,6 +137,7 @@ export function TripPlanDayTabs({
                   dayId={isGeneratedTripDayId(selectedDay.id) ? null : selectedDay.id}
                   dayDate={selectedDay.date}
                   dayNumber={selectedDay.day_number ?? selectedDayIndex + 1}
+                  travelers={travelers}
                 />
               ) : null}
 

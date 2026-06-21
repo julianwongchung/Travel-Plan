@@ -21,6 +21,21 @@ export type FloatingTabBarItem = {
   icon: FloatingTabBarIcon;
 };
 
+function normalizePath(path: string) {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+function isActiveTab(pathname: string, href: string) {
+  const currentPath = normalizePath(pathname);
+  const itemPath = normalizePath(href);
+
+  if (itemPath === "/trips") {
+    return currentPath === itemPath;
+  }
+
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+}
+
 export function FloatingTabBar({
   items,
   ariaLabel = "Trip navigation",
@@ -35,9 +50,12 @@ export function FloatingTabBar({
       aria-label={ariaLabel}
       className="pointer-events-none fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-[100] sm:inset-x-3 xl:hidden"
     >
-      <div className="ios-glass pointer-events-auto mx-auto grid max-w-md grid-flow-col auto-cols-fr rounded-[26px] p-1">
+      <div
+        className="ios-glass pointer-events-auto mx-auto grid w-full max-w-md overflow-hidden rounded-[26px] p-1"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isActiveTab(pathname, item.href);
           const Icon = icons[item.icon];
           return (
             <Link
@@ -45,7 +63,7 @@ export function FloatingTabBar({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "ios-pressed grid min-h-12 min-w-0 place-items-center gap-0.5 rounded-[20px] px-0.5 py-1.5 text-center text-[9px] font-semibold leading-3 text-[var(--muted-foreground)] sm:px-1",
+                "ios-pressed grid min-h-12 w-full min-w-0 place-items-center gap-0.5 overflow-hidden rounded-[20px] px-0.5 py-1.5 text-center text-[9px] font-semibold leading-3 text-[var(--muted-foreground)] sm:px-1",
                 active && "bg-[var(--card-strong)] text-[var(--primary)] shadow-sm",
               )}
             >

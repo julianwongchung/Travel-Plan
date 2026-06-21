@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { Plane } from "lucide-react";
 import { login } from "@/lib/actions/auth";
+import { AppLogo } from "@/components/layout/app-logo";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form-fields";
 import { GlassCard, GlassCardContent } from "@/components/ui/glass-card";
@@ -17,16 +17,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="relative grid min-h-dvh w-full place-items-center overflow-hidden px-3 py-6 sm:px-4 sm:py-10">
       <div className="pointer-events-none absolute left-[-8rem] top-[-8rem] size-80 rounded-full bg-[var(--primary-soft)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-8rem] right-[-7rem] size-72 rounded-full bg-[rgba(175,82,222,0.12)] blur-3xl" />
+      <AppLogo className="absolute left-4 top-4 z-10 sm:left-6 sm:top-6" imageClassName="w-[148px] sm:w-[172px]" />
       <GlassCard variant="glass" className="w-full max-w-md rounded-[26px] sm:rounded-[30px]">
         <GlassCardContent className="p-5 sm:p-8">
-          <div className="mb-6 flex min-w-0 items-center gap-3 sm:mb-8 sm:gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-[18px] bg-[var(--primary)] text-white shadow-[0_12px_30px_rgba(10,132,255,0.28)] sm:size-14 sm:rounded-[20px]">
-              <Plane size={22} />
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-[-0.04em] sm:text-3xl">Travel OS</h1>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Your private trip workspace</p>
-            </div>
+          <div className="mb-6 min-w-0 sm:mb-8">
+            <h1 className="text-2xl font-bold tracking-[-0.04em] sm:text-3xl">Welcome back</h1>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">Your private trip workspace</p>
           </div>
           <form action={login} className="grid gap-5">
             <Suspense>

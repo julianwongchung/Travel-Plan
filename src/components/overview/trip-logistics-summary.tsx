@@ -3,32 +3,22 @@
 import { useState } from "react";
 import { Bed, CalendarDays, ChevronRight, MapPin, Plane, UserRound } from "lucide-react";
 import type { TripFlight, TripHotel } from "@/lib/db/types";
+import { formatDisplayDate } from "@/lib/utils/date-format";
 import {
   normalizeFlights,
   normalizeHotels,
-  selectFeaturedFlightItem,
-  selectFeaturedHotelItem,
   type FlightDisplayItem,
   type HotelDisplayItem,
 } from "@/lib/utils/trip-logistics";
-import { GlassCard } from "@/components/ui/glass-card";
-import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
+import { IOSModal } from "@/components/ui/ios-modal";
 
 function formatDate(date: string | null) {
-  if (!date) return "Not set";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
+  return formatDisplayDate(date);
 }
 
 function formatTime(time: string) {
-  const [hour, minute] = time.split(":").map(Number);
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(2000, 0, 1, hour, minute));
+  const [hour = "", minute = ""] = time.split(":");
+  return hour && minute ? `${hour.padStart(2, "0")}:${minute}` : time;
 }
 
 function HotelDetails({ hotels }: { hotels: HotelDisplayItem[] }) {
@@ -46,7 +36,7 @@ function HotelDetails({ hotels }: { hotels: HotelDisplayItem[] }) {
           </p>
           <p className="mt-2 flex items-start gap-2 text-sm text-[var(--muted-foreground)]">
             <CalendarDays size={16} className="mt-0.5 shrink-0" />
-            {formatDate(hotel.checkInDate)} - {formatDate(hotel.checkOutDate)}
+            Check-in: {formatDate(hotel.checkInDate)}
           </p>
           {hotel.notes ? (
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{hotel.notes}</p>
@@ -101,8 +91,6 @@ export function TripLogisticsSummary({
   planHotels = [],
   flights,
   planFlights = [],
-  today,
-  now,
 }: {
   tripId: string;
   hotels: TripHotel[];
@@ -110,95 +98,77 @@ export function TripLogisticsSummary({
   planHotels?: HotelDisplayItem[];
   flights: TripFlight[];
   planFlights?: FlightDisplayItem[];
-  today: string;
-  now: string;
+  today?: string;
+  now?: string;
 }) {
   const [sheet, setSheet] = useState<"hotels" | "flights" | null>(null);
   const allHotels = [...normalizeHotels(hotels), ...legacyHotels, ...planHotels];
   const allFlights = [...normalizeFlights(flights), ...planFlights];
-  const featuredHotel = selectFeaturedHotelItem(allHotels, today);
-  const featuredFlight = selectFeaturedFlightItem(allFlights, new Date(now));
 
   return (
     <>
       <div
         data-logistics-summary
-        className="mx-auto grid w-full max-w-xl min-w-0 grid-cols-2 gap-3 sm:gap-4"
+        className="mx-auto grid w-full max-w-sm min-w-0 grid-cols-2 gap-3"
       >
-        <GlassCard
+        <div
           data-logistics-tile
-          className="aspect-square overflow-hidden border-violet-300/35 bg-violet-500/[0.06] p-0 dark:border-violet-400/20"
+          className="aspect-square overflow-hidden rounded-[14px] border border-slate-100 bg-white p-0 shadow-sm dark:border-white/10 dark:bg-[var(--card-strong)]"
         >
           <button
             type="button"
             aria-label="View all hotels"
             onClick={() => setSheet("hotels")}
-            className="ios-pressable relative flex h-full w-full min-w-0 flex-col p-3 text-left sm:p-4"
+            className="ios-pressable relative flex h-full w-full min-w-0 flex-col items-start p-3 text-left sm:p-4"
           >
-            <span className="min-w-0">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-violet-600 dark:text-violet-300 sm:text-sm">
-                <Bed size={16} /> Hotels
+            <span
+              data-logistics-icon
+              className="grid size-8 place-items-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300"
+            >
+              <Bed size={16} />
+            </span>
+            <span className="mt-2 min-w-0">
+              <span className="block text-[9px] font-extrabold uppercase tracking-[0.12em] text-violet-600 dark:text-violet-300">
+                HOTELS
               </span>
-              <span className="mt-2 block text-xl font-extrabold sm:mt-3 sm:text-2xl">
+              <span className="mt-1 block text-lg font-extrabold leading-tight tracking-[-0.03em] text-slate-950 dark:text-white sm:text-xl">
                 {allHotels.length} {allHotels.length === 1 ? "hotel" : "hotels"}
               </span>
-              {featuredHotel ? (
-                <>
-                  <span className="mt-1.5 line-clamp-2 break-words text-xs font-bold leading-4 sm:mt-2 sm:text-sm sm:leading-5">
-                    {featuredHotel.name}
-                  </span>
-                  <span className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--muted-foreground)] sm:text-xs">
-                    {formatDate(featuredHotel.checkInDate)} - {formatDate(featuredHotel.checkOutDate)}
-                  </span>
-                </>
-              ) : (
-                <span className="mt-1.5 block text-xs leading-4 text-[var(--muted-foreground)] sm:mt-2 sm:text-sm">
-                  No hotel added yet
-                </span>
-              )}
             </span>
-            <ChevronRight className="absolute bottom-3 right-3 text-violet-500 sm:bottom-4 sm:right-4" size={17} />
+            <ChevronRight className="absolute bottom-3 right-3 text-slate-500 dark:text-slate-300" size={15} />
           </button>
-        </GlassCard>
+        </div>
 
-        <GlassCard
+        <div
           data-logistics-tile
-          className="aspect-square overflow-hidden border-blue-300/35 bg-blue-500/[0.06] p-0 dark:border-blue-400/20"
+          className="aspect-square overflow-hidden rounded-[14px] border border-slate-100 bg-white p-0 shadow-sm dark:border-white/10 dark:bg-[var(--card-strong)]"
         >
           <button
             type="button"
             aria-label="View all flights"
             onClick={() => setSheet("flights")}
-            className="ios-pressable relative flex h-full w-full min-w-0 flex-col p-3 text-left sm:p-4"
+            className="ios-pressable relative flex h-full w-full min-w-0 flex-col items-start p-3 text-left sm:p-4"
           >
-            <span className="min-w-0">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-300 sm:text-sm">
-                <Plane size={16} /> Flights
+            <span
+              data-logistics-icon
+              className="grid size-8 place-items-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300"
+            >
+              <Plane size={16} />
+            </span>
+            <span className="mt-2 min-w-0">
+              <span className="block text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">
+                FLIGHTS
               </span>
-              <span className="mt-2 block text-xl font-extrabold sm:mt-3 sm:text-2xl">
+              <span className="mt-1 block text-lg font-extrabold leading-tight tracking-[-0.03em] text-slate-950 dark:text-white sm:text-xl">
                 {allFlights.length} {allFlights.length === 1 ? "flight" : "flights"}
               </span>
-              {featuredFlight ? (
-                <>
-                  <span className="mt-1.5 line-clamp-2 break-words text-xs font-bold leading-4 sm:mt-2 sm:text-sm sm:leading-5">
-                    {formatTime(featuredFlight.flightTime)} - {featuredFlight.flightNumber}
-                  </span>
-                  <span className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--muted-foreground)] sm:text-xs">
-                    {featuredFlight.passengerName}
-                  </span>
-                </>
-              ) : (
-                <span className="mt-1.5 block text-xs leading-4 text-[var(--muted-foreground)] sm:mt-2 sm:text-sm">
-                  No flight added yet
-                </span>
-              )}
             </span>
-            <ChevronRight className="absolute bottom-3 right-3 text-blue-500 sm:bottom-4 sm:right-4" size={17} />
+            <ChevronRight className="absolute bottom-3 right-3 text-slate-500 dark:text-slate-300" size={15} />
           </button>
-        </GlassCard>
+        </div>
       </div>
 
-      <IOSBottomSheet open={sheet === "hotels"} title="All hotels" onClose={() => setSheet(null)}>
+      <IOSModal open={sheet === "hotels"} title="All hotels" onClose={() => setSheet(null)}>
         {allHotels.length ? (
           <HotelDetails hotels={allHotels} />
         ) : (
@@ -206,10 +176,10 @@ export function TripLogisticsSummary({
             No hotel added yet.
           </div>
         )}
-      </IOSBottomSheet>
-      <IOSBottomSheet open={sheet === "flights"} title="All flights" onClose={() => setSheet(null)}>
+      </IOSModal>
+      <IOSModal open={sheet === "flights"} title="All flights" onClose={() => setSheet(null)}>
         <FlightDetails flights={allFlights} />
-      </IOSBottomSheet>
+      </IOSModal>
     </>
   );
 }

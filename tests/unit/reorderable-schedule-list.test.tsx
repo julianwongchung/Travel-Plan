@@ -3,8 +3,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScheduleItem } from "@/lib/db/types";
+import { serializeFlightPlan } from "@/lib/utils/schedule-item-plan";
 
-const { closestCenter, dndHarness, pointerWithin, reorderScheduleItems } = vi.hoisted(() => ({
+const { closestCenter, dndHarness, invalidateQueries, pointerWithin, refresh, reorderScheduleItems, updateFlightScheduleItem, updateScheduleItemPlan } = vi.hoisted(() => ({
   closestCenter: vi.fn(),
   dndHarness: {
     collisionDetection: null as null | ((args: unknown) => unknown),
@@ -24,13 +25,27 @@ const { closestCenter, dndHarness, pointerWithin, reorderScheduleItems } = vi.ho
       options?: unknown;
     }>,
   },
+  invalidateQueries: vi.fn(),
   pointerWithin: vi.fn(),
+  refresh: vi.fn(),
   reorderScheduleItems: vi.fn(),
+  updateFlightScheduleItem: vi.fn(),
+  updateScheduleItemPlan: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/trips", () => ({
   removeScheduleItem: vi.fn(),
   reorderScheduleItems,
+  updateFlightScheduleItem,
+  updateScheduleItemPlan,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh }),
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries }),
 }));
 
 vi.mock("@dnd-kit/core", () => ({
@@ -156,9 +171,15 @@ describe("ReorderableScheduleList", () => {
     dndHarness.collisionDetection = null;
     dndHarness.onDragEnd = null;
     dndHarness.sensors = [];
+    invalidateQueries.mockReset();
     pointerWithin.mockReset();
+    refresh.mockReset();
     reorderScheduleItems.mockReset();
     reorderScheduleItems.mockResolvedValue(undefined);
+    updateFlightScheduleItem.mockReset();
+    updateFlightScheduleItem.mockResolvedValue(undefined);
+    updateScheduleItemPlan.mockReset();
+    updateScheduleItemPlan.mockResolvedValue(undefined);
   });
 
   function renderList() {
@@ -198,6 +219,8 @@ describe("ReorderableScheduleList", () => {
         ["item-2", "item-1", "item-3"],
       );
     });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
   });
 
   it("moves the third stop above the first and persists the UUID order", async () => {
@@ -260,7 +283,7 @@ describe("ReorderableScheduleList", () => {
       },
     }, {})).toBe(true);
     expect(dndHarness.sensors[1]?.options).toEqual({
-      activationConstraint: { distance: 4 },
+      activationConstraint: { delay: 200, tolerance: 8 },
     });
 
     const collisions = [{ id: "item-2" }];
@@ -304,5 +327,207 @@ describe("ReorderableScheduleList", () => {
 
     expect(renderedOrder(container)).toEqual(["item-1", "item-2", "item-3"]);
     await waitFor(() => expect(reorderScheduleItems).not.toHaveBeenCalled());
+  });
+
+  it("shows connecting flight route and segments without splitting the draggable item", () => {
+    const flightItem: ScheduleItem = {
+      id: "flight-1",
+      trip_id: "trip-1",
+      trip_day_id: "day-1",
+      time_block: "18:00",
+      title: "Kuching \u2192 Kuala Lumpur \u2192 Osaka",
+      description: serializeFlightPlan([
+        {
+          origin: "Kuching",
+          destination: "Kuala Lumpur",
+          departureDate: "2026-11-20",
+          departureTime: "18:00",
+          arrivalDate: "2026-11-20",
+          arrivalTime: "20:00",
+        },
+        {
+          origin: "Kuala Lumpur",
+          destination: "Osaka",
+          departureDate: "2026-11-20",
+          departureTime: "22:40",
+          arrivalDate: "2026-11-21",
+          arrivalTime: "05:50",
+        },
+      ], ["Julian", "Clarrie"], "Overnight flight"),
+      transport: "Flight",
+      food: null,
+      notes: null,
+      sort_order: 1,
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    const { container } = render(
+      <ReorderableScheduleList
+        tripId="trip-1"
+        tripDayId="day-1"
+        items={[flightItem]}
+        editable
+      />,
+    );
+
+    expect(screen.getByText("Kuching \u2192 Kuala Lumpur \u2192 Osaka")).toBeTruthy();
+    expect(screen.getByText("1 stop in Kuala Lumpur - Passengers: Julian, Clarrie")).toBeTruthy();
+    expect(screen.getByText("1. Kuching to Kuala Lumpur / 20/11/2026 18:00 to 20/11/2026 20:00")).toBeTruthy();
+    expect(screen.getByText("2. Kuala Lumpur to Osaka / 20/11/2026 22:40 to 21/11/2026 05:50 (+1 day)")).toBeTruthy();
+    expect(container.querySelectorAll("[data-schedule-item-id]")).toHaveLength(1);
+  });
+
+  it("edits a connecting flight as one grouped schedule item", async () => {
+    const flightItem: ScheduleItem = {
+      id: "flight-1",
+      trip_id: "trip-1",
+      trip_day_id: "day-1",
+      time_block: "18:00",
+      title: "Kuching \u2192 Kuala Lumpur \u2192 Osaka",
+      description: serializeFlightPlan([
+        {
+          origin: "Kuching",
+          destination: "Kuala Lumpur",
+          departureDate: "2026-11-20",
+          departureTime: "18:00",
+          arrivalDate: "2026-11-20",
+          arrivalTime: "20:00",
+        },
+        {
+          origin: "Kuala Lumpur",
+          destination: "Osaka",
+          departureDate: "2026-11-20",
+          departureTime: "22:40",
+          arrivalDate: "2026-11-21",
+          arrivalTime: "05:50",
+        },
+      ], ["Julian"], "Overnight flight"),
+      transport: "Flight",
+      food: null,
+      notes: null,
+      sort_order: 1,
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    render(
+      <ReorderableScheduleList
+        tripId="trip-1"
+        tripDayId="day-1"
+        items={[flightItem]}
+        editable
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Kuching \u2192 Kuala Lumpur \u2192 Osaka" }));
+    const destinations = screen.getAllByRole("textbox", { name: "Destination / To" });
+    fireEvent.change(destinations[1], { target: { value: "Kansai Airport" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save flight" }));
+
+    await waitFor(() => expect(updateFlightScheduleItem).toHaveBeenCalledTimes(1));
+    const submitted = updateFlightScheduleItem.mock.calls[0][2] as FormData;
+    expect(updateFlightScheduleItem).toHaveBeenCalledWith("trip-1", "flight-1", expect.any(FormData));
+    expect(submitted.get("flight_segment_count")).toBe("2");
+    expect(submitted.get("flight_segments.0.origin")).toBe("Kuching");
+    expect(submitted.get("flight_segments.1.destination")).toBe("Kansai Airport");
+    expect(submitted.get("flight_segments.1.arrival_at")).toBe("2026-11-21T05:50");
+    expect(submitted.get("flight_passenger_name")).toBe("Julian");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
+  });
+
+  it("edits a hotel schedule item from the plan list", async () => {
+    const hotelItem: ScheduleItem = {
+      id: "hotel-1",
+      trip_id: "trip-1",
+      trip_day_id: "day-1",
+      time_block: "2026-06-13T15:00",
+      title: "Harbour Stay",
+      description: "Check-in: 2026-06-13T15:00 - Check-out: 2026-06-15T11:00 - Late arrival",
+      transport: "Lodging",
+      food: null,
+      notes: null,
+      sort_order: 1,
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    render(
+      <ReorderableScheduleList
+        tripId="trip-1"
+        tripDayId="day-1"
+        items={[hotelItem]}
+        editable
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Harbour Stay" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Hotel name" }), {
+      target: { value: "Harbour Stay Hotel" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Notes" }), {
+      target: { value: "Late arrival and breakfast" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save hotel" }));
+
+    await waitFor(() => expect(updateScheduleItemPlan).toHaveBeenCalledTimes(1));
+    const submitted = updateScheduleItemPlan.mock.calls[0][2] as FormData;
+    expect(updateScheduleItemPlan).toHaveBeenCalledWith("trip-1", "hotel-1", expect.any(FormData));
+    expect(submitted.get("plan_type")).toBe("hotel");
+    expect(submitted.get("hotel_name")).toBe("Harbour Stay Hotel");
+    expect(submitted.get("check_in")).toBe("2026-06-13T15:00");
+    expect(submitted.get("check_out")).toBe("2026-06-15T11:00");
+    expect(submitted.get("plan_notes")).toBe("Late arrival and breakfast");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
+  });
+
+  it("edits a place schedule item from the plan list", async () => {
+    const placeItem: ScheduleItem = {
+      id: "place-1",
+      trip_id: "trip-1",
+      trip_day_id: "day-1",
+      time_block: "18:00",
+      title: "Marble Mountains",
+      description: "Sunset visit",
+      transport: "Activity",
+      food: null,
+      notes: "https://maps.google.com/?q=Marble%20Mountains",
+      sort_order: 1,
+      created_at: "2026-06-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    render(
+      <ReorderableScheduleList
+        tripId="trip-1"
+        tripDayId="day-1"
+        items={[placeItem]}
+        editable
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Marble Mountains" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Place name" }), {
+      target: { value: "Dragon Bridge" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Time" }), {
+      target: { value: "20:00" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Notes" }), {
+      target: { value: "Evening lights" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save place" }));
+
+    await waitFor(() => expect(updateScheduleItemPlan).toHaveBeenCalledTimes(1));
+    const submitted = updateScheduleItemPlan.mock.calls[0][2] as FormData;
+    expect(updateScheduleItemPlan).toHaveBeenCalledWith("trip-1", "place-1", expect.any(FormData));
+    expect(submitted.get("plan_type")).toBe("place");
+    expect(submitted.get("place_name")).toBe("Dragon Bridge");
+    expect(submitted.get("place_time")).toBe("20:00");
+    expect(submitted.get("plan_notes")).toBe("Evening lights");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
   });
 });

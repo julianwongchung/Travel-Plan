@@ -4,26 +4,32 @@ import { describe, expect, it } from "vitest";
 import { ExpenseCategoryChart } from "@/components/expenses/expense-category-chart";
 
 describe("ExpenseCategoryChart", () => {
-  it("renders a donut with MYR total, category percentages, and matching rows", () => {
+  it("renders category totals grouped by original currency", () => {
     const markup = renderToStaticMarkup(createElement(ExpenseCategoryChart, {
       categoryTotals: {
-        food: 140,
-        transport: 100,
-        purchase: 60,
+        food: { MYR: 40, SGD: 100 },
+        transport: { JPY: 2500 },
+        purchase: { SGD: 60 },
+        hotel: { MYR: 200 },
+        insurance: { MYR: 50 },
       },
     }));
 
-    expect(markup).toContain("Category breakdown");
-    expect(markup).toContain("RM 300.00");
+    expect(markup).toContain("Category totals");
     expect(markup).toContain("Food");
-    expect(markup).toContain("46.7%");
+    expect(markup).toContain("MYR");
+    expect(markup).toContain("40.00");
+    expect(markup).toContain("SGD");
+    expect(markup).toContain("100.00");
     expect(markup).toContain("Transport");
-    expect(markup).toContain("33.3%");
+    expect(markup).toContain("JPY");
+    expect(markup).toContain("2,500");
     expect(markup).toContain("Purchase");
-    expect(markup).toContain("20.0%");
-    expect(markup).toContain("conic-gradient");
-    expect(markup).toContain('role="img"');
-    expect(markup).toContain("Expense category breakdown");
+    expect(markup).toContain("Hotel");
+    expect(markup).toContain("Insurance");
+    expect(markup).not.toContain("RM 550.00");
+    expect(markup).not.toContain("conic-gradient");
+    expect(markup).not.toContain("%");
   });
 
   it("shows a calm empty state when there are no category totals", () => {
@@ -38,12 +44,12 @@ describe("ExpenseCategoryChart", () => {
   it("keeps legacy categories visible as Other", () => {
     const markup = renderToStaticMarkup(createElement(ExpenseCategoryChart, {
       categoryTotals: {
-        food: 80,
-        other: 20,
+        food: { MYR: 80 },
+        other: { MYR: 20 },
       },
     }));
 
     expect(markup).toContain("Other");
-    expect(markup).toContain("20.0%");
+    expect(markup).toContain("20.00");
   });
 });

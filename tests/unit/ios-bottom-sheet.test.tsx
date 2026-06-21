@@ -23,4 +23,16 @@ describe("IOSBottomSheet", () => {
     expect(pageContainer.contains(dialog)).toBe(false);
     expect(document.body.contains(dialog)).toBe(true);
   });
+
+  it("can center the sheet for flows that should not use a mobile bottom sheet", () => {
+    render(
+      <IOSBottomSheet open title="Add Expense" placement="center" onClose={() => undefined}>
+        <p>Sheet content</p>
+      </IOSBottomSheet>,
+    );
+
+    expect(screen.getByRole("presentation").className.split(/\s+/)).toContain("items-center");
+    expect(screen.getByRole("presentation").className.split(/\s+/)).not.toContain("items-end");
+    expect(screen.getByRole("dialog", { name: "Add Expense" }).className).toContain("rounded-[30px]");
+  });
 });

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, ChevronLeft, Home, LogOut, MapPin, Plane, WalletCards } from "lucide-react";
+import { CalendarDays, ChevronLeft, Home, LogOut, MapPin, WalletCards } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
+import { AppLogo } from "@/components/layout/app-logo";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { WorkspaceMobileNav } from "@/components/layout/workspace-mobile-nav";
@@ -30,12 +31,7 @@ export function TripShell({
   return (
     <div className="min-h-screen">
       <aside className="glass-surface-strong fixed inset-y-4 left-4 z-30 hidden w-72 rounded-[30px] p-5 xl:block">
-        <Link href="/trips" className="flex items-center gap-3 text-lg font-bold tracking-[-0.02em]">
-          <span className="grid size-11 place-items-center rounded-[16px] bg-[var(--primary)] text-white shadow-[0_8px_24px_rgba(10,132,255,0.28)]">
-            <Plane size={20} />
-          </span>
-          Travel OS
-        </Link>
+        <AppLogo imageClassName="w-[174px]" />
         <GlassCard variant="subtle" className="mt-7 rounded-[22px] p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Current trip</p>
           <h1 className="mt-1.5 text-lg font-bold tracking-[-0.02em]">{trip.name}</h1>
@@ -62,7 +58,8 @@ export function TripShell({
 
       <header className="glass-surface-strong sticky top-0 z-50 min-h-14 border-x-0 border-t-0 px-2.5 py-1.5 xl:ml-80 xl:min-h-0 xl:px-4 xl:py-3 xl:bg-transparent xl:shadow-none xl:backdrop-blur-none">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <AppLogo className="xl:hidden" imageClassName="w-[104px] sm:w-[126px]" />
             <Link href="/trips" aria-label="Back to My Trips" className="ios-pressable grid size-11 shrink-0 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--muted)]">
               <ChevronLeft size={16} />
             </Link>

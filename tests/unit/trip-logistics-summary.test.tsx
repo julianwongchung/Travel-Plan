@@ -40,7 +40,7 @@ const flight: TripFlight = {
 describe("TripLogisticsSummary", () => {
   afterEach(cleanup);
 
-  it("shows featured hotel and flight details", () => {
+  it("shows simple square hotel and flight count tiles without inline details", () => {
     const { container } = render(
       <TripLogisticsSummary
         tripId="trip-1"
@@ -52,10 +52,13 @@ describe("TripLogisticsSummary", () => {
       />,
     );
 
-    expect(screen.getByText("Vaia Hoi An Boutique Hotel")).toBeTruthy();
-    expect(screen.getByText("Julian Wong")).toBeTruthy();
     expect(screen.getByText("1 hotel")).toBeTruthy();
     expect(screen.getByText("1 flight")).toBeTruthy();
+    expect(screen.getByText("HOTELS")).toBeTruthy();
+    expect(screen.getByText("FLIGHTS")).toBeTruthy();
+    expect(screen.queryByText("Vaia Hoi An Boutique Hotel")).toBeNull();
+    expect(screen.queryByText("Julian Wong")).toBeNull();
+    expect(screen.queryByText("13/06/2026 - 15/06/2026")).toBeNull();
 
     const summaryGrid = container.querySelector('[data-logistics-summary]');
     const summaryTiles = container.querySelectorAll('[data-logistics-tile]');
@@ -63,10 +66,19 @@ describe("TripLogisticsSummary", () => {
     expect(summaryTiles).toHaveLength(2);
     expect(summaryTiles[0].className).toContain("aspect-square");
     expect(summaryTiles[1].className).toContain("aspect-square");
+    expect(summaryTiles[0].className).toContain("bg-white");
+    expect(summaryTiles[0].className).toContain("rounded-[14px]");
+    expect(summaryTiles[1].className).toContain("bg-white");
+
+    const iconBubbles = container.querySelectorAll("[data-logistics-icon]");
+    expect(iconBubbles).toHaveLength(2);
+    expect(iconBubbles[0].className).toContain("rounded-full");
+    expect(iconBubbles[0].className).toContain("bg-violet-100");
+    expect(iconBubbles[1].className).toContain("bg-blue-100");
   });
 
-  it("opens a read-only details sheet", () => {
-    render(
+  it("opens a centered read-only details modal", () => {
+    const { container } = render(
       <TripLogisticsSummary
         tripId="trip-1"
         hotels={[hotel]}
@@ -78,8 +90,25 @@ describe("TripLogisticsSummary", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "View all hotels" }));
-    expect(screen.getByRole("dialog", { name: "All hotels" })).toBeTruthy();
+    const dialog = screen.getByRole("dialog", { name: "All hotels" });
+    const modal = document.querySelector("[data-ios-modal]");
+    const overlay = document.querySelector("[data-ios-modal-overlay]");
+    expect(dialog).toBeTruthy();
+    expect(overlay?.className).toContain("place-items-center");
+    expect(overlay?.className).toContain("backdrop-blur-md");
+    expect(modal?.className).toContain("max-h-[min(82dvh,42rem)]");
+    expect(modal?.className).toContain("sm:max-w-lg");
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
     expect(screen.getByText("Breakfast included")).toBeTruthy();
+    expect(screen.getByText("Check-in: 13/06/2026")).toBeTruthy();
+    expect(container.querySelector("[data-ios-modal]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "View all flights" }));
+    expect(screen.getByRole("dialog", { name: "All flights" })).toBeTruthy();
+    expect(screen.getByText("SQ172")).toBeTruthy();
+    expect(screen.getByText("Julian Wong")).toBeTruthy();
+    expect(screen.getByText("Terminal 2")).toBeTruthy();
   });
 
   it("keeps empty summaries visible and opens their detail sheets", () => {
@@ -94,8 +123,10 @@ describe("TripLogisticsSummary", () => {
       />,
     );
 
-    expect(screen.getByText("No hotel added yet")).toBeTruthy();
-    expect(screen.getByText("No flight added yet")).toBeTruthy();
+    expect(screen.getByText("0 hotels")).toBeTruthy();
+    expect(screen.getByText("0 flights")).toBeTruthy();
+    expect(screen.queryByText("No hotel added yet")).toBeNull();
+    expect(screen.queryByText("No flight added yet")).toBeNull();
     expect(screen.queryByRole("link", { name: "Add in Places" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "View all hotels" }));

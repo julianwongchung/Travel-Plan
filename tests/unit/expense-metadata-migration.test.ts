@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync("supabase/migrations/011_expense_details.sql", "utf8");
+const validationMigration = readFileSync("supabase/migrations/013_trip_mutation_rpcs_and_validation.sql", "utf8");
 const actions = readFileSync("src/lib/actions/expenses.ts", "utf8");
 
 describe("expense detail persistence", () => {
@@ -27,5 +28,17 @@ describe("expense detail persistence", () => {
     expect(actions).toContain("p_expense_date");
     expect(actions).toContain("p_expense_time");
     expect(actions).toContain("p_notes");
+  });
+
+  it("falls back when Supabase has not refreshed the extended RPC signature", () => {
+    expect(actions).toContain("isMissingExpenseMetadataRpc");
+    expect(actions).toContain("PGRST202");
+    expect(actions).toContain("legacyCreateExpenseArgs");
+    expect(actions).toContain("legacyUpdateExpenseArgs");
+  });
+
+  it("requires positive expense totals in the latest validation migration", () => {
+    expect(validationMigration).toContain("drop constraint if exists trip_expenses_total_amount_check");
+    expect(validationMigration).toContain("check (total_amount > 0)");
   });
 });

@@ -9,6 +9,16 @@ import type { ScheduleItem } from "@/lib/db/types";
 vi.mock("@/lib/actions/trips", () => ({
   removeScheduleItem: vi.fn(),
   reorderScheduleItems: vi.fn(),
+  updateFlightScheduleItem: vi.fn(),
+  updateScheduleItemPlan: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 import { ReorderableScheduleList } from "@/components/trip/reorderable-schedule-list";

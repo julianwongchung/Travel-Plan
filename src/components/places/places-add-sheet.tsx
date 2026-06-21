@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bed, ChevronLeft, MapPin, Plane } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { createPlace } from "@/lib/actions/places";
 import { createTripFlight, createTripHotel } from "@/lib/actions/trip-logistics";
+import { tripKeys } from "@/lib/db/query-keys";
 import { flightInputSchema, hotelInputSchema, placeInputSchema } from "@/lib/utils/trip-logistics";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-fields";
@@ -22,7 +23,7 @@ function ErrorMessage({ message }: { message?: string }) {
 function HotelForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof hotelInputSchema>>({
     resolver: zodResolver(hotelInputSchema),
     defaultValues: { name: "", location: "", checkInDate: "", checkOutDate: "", notes: "" },
@@ -40,7 +41,11 @@ function HotelForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
           formData.set("check_out_date", values.checkOutDate);
           formData.set("notes", values.notes);
           await createTripHotel(tripId, formData);
-          router.refresh();
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) }),
+            queryClient.invalidateQueries({ queryKey: tripKeys.hotels(tripId) }),
+            queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+          ]);
           onDone();
         } catch (error) {
           setServerError(error instanceof Error ? error.message : "Could not add hotel.");
@@ -52,8 +57,8 @@ function HotelForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
       <Field label="Location/address"><Input {...register("location")} /></Field>
       <ErrorMessage message={errors.location?.message} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Check-in date"><Input type="date" {...register("checkInDate")} /></Field>
-        <Field label="Check-out date"><Input type="date" {...register("checkOutDate")} /></Field>
+        <Field label="Check-in date"><Input type="date" lang="en-GB" {...register("checkInDate")} /></Field>
+        <Field label="Check-out date"><Input type="date" lang="en-GB" {...register("checkOutDate")} /></Field>
       </div>
       <ErrorMessage message={errors.checkInDate?.message ?? errors.checkOutDate?.message} />
       <Field label="Notes"><Textarea {...register("notes")} /></Field>
@@ -66,7 +71,7 @@ function HotelForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
 function FlightForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof flightInputSchema>>({
     resolver: zodResolver(flightInputSchema),
     defaultValues: {
@@ -89,7 +94,11 @@ function FlightForm({ tripId, onDone }: { tripId: string; onDone: () => void }) 
           formData.set("arrival", values.arrival);
           formData.set("notes", values.notes);
           await createTripFlight(tripId, formData);
-          router.refresh();
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) }),
+            queryClient.invalidateQueries({ queryKey: tripKeys.flights(tripId) }),
+            queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+          ]);
           onDone();
         } catch (error) {
           setServerError(error instanceof Error ? error.message : "Could not add flight.");
@@ -98,7 +107,7 @@ function FlightForm({ tripId, onDone }: { tripId: string; onDone: () => void }) 
     })}>
       <Field label="Flight number"><Input {...register("flightNumber")} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Flight date"><Input type="date" {...register("flightDate")} /></Field>
+        <Field label="Flight date"><Input type="date" lang="en-GB" {...register("flightDate")} /></Field>
         <Field label="Flight time"><Input type="time" {...register("flightTime")} /></Field>
       </div>
       <Field label="Passenger/person name"><Input {...register("passengerName")} /></Field>
@@ -116,7 +125,7 @@ function FlightForm({ tripId, onDone }: { tripId: string; onDone: () => void }) 
 function PlaceForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof placeInputSchema>>({
     resolver: zodResolver(placeInputSchema),
     defaultValues: { name: "", location: "", plannedDate: "", plannedTime: "", notes: "" },
@@ -136,7 +145,10 @@ function PlaceForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
           formData.set("planned_time", values.plannedTime);
           formData.set("notes", values.notes);
           await createPlace(tripId, formData);
-          router.refresh();
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: tripKeys.places(tripId) }),
+            queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+          ]);
           onDone();
         } catch (error) {
           setServerError(error instanceof Error ? error.message : "Could not add place.");
@@ -146,7 +158,7 @@ function PlaceForm({ tripId, onDone }: { tripId: string; onDone: () => void }) {
       <Field label="Place name"><Input {...register("name")} /></Field>
       <Field label="Location/address"><Input {...register("location")} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Optional date"><Input type="date" {...register("plannedDate")} /></Field>
+        <Field label="Optional date"><Input type="date" lang="en-GB" {...register("plannedDate")} /></Field>
         <Field label="Optional time"><Input type="time" {...register("plannedTime")} /></Field>
       </div>
       <Field label="Notes"><Textarea {...register("notes")} /></Field>

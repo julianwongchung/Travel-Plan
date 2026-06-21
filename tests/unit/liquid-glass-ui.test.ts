@@ -39,13 +39,13 @@ describe("Liquid Glass UI primitives", () => {
     const markup = renderToStaticMarkup(
       createElement(IOSListItem, {
         title: "Da Nang Trip",
-        description: "Jun 13 to Jun 17",
+        description: "13/06/2026 to 17/06/2026",
         trailing: "Open",
       }),
     );
 
     expect(markup).toContain("Da Nang Trip");
-    expect(markup).toContain("Jun 13 to Jun 17");
+    expect(markup).toContain("13/06/2026 to 17/06/2026");
     expect(markup).toContain("Open");
   });
 
@@ -62,7 +62,7 @@ describe("Liquid Glass UI primitives", () => {
     const markup = renderToStaticMarkup(
       createElement(IOSPageHeader, {
         title: "Da Nang Trip",
-        description: "Jun 13 to Jun 17",
+        description: "13/06/2026 to 17/06/2026",
       }),
     );
 

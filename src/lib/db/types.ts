@@ -188,6 +188,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       create_trip: { Args: { p_name: string; p_start_date: string | null; p_end_date: string | null; p_default_currency: Currency }; Returns: string };
+      create_trip_with_travelers: { Args: { p_name: string; p_start_date: string | null; p_end_date: string | null; p_default_currency: Currency; p_traveler_names: string[] }; Returns: string };
       update_trip: { Args: { p_trip_id: string; p_name: string; p_start_date: string | null; p_end_date: string | null; p_default_currency: Currency }; Returns: void };
       complete_trip: { Args: { p_trip_id: string }; Returns: void };
       archive_trip: { Args: { p_trip_id: string }; Returns: void };
@@ -199,6 +200,10 @@ export type Database = {
       remove_trip_member: { Args: { p_member_id: string }; Returns: void };
       update_trip_member_role: { Args: { p_member_id: string; p_role: "editor" | "viewer" }; Returns: void };
       cancel_trip_invitation: { Args: { p_invitation_id: string }; Returns: void };
+      add_traveler: { Args: { p_trip_id: string; p_name: string }; Returns: string };
+      ensure_trip_day: { Args: { p_trip_id: string; p_date: string; p_day_number: number | null }; Returns: string };
+      create_schedule_item: { Args: { p_trip_id: string; p_trip_day_id: string | null; p_trip_day_date: string | null; p_trip_day_number: number | null; p_time_block: string | null; p_title: string; p_description: string | null; p_transport: string | null; p_food: string | null; p_notes: string | null }; Returns: string };
+      get_trip_cards: { Args: Record<string, never>; Returns: Array<Trip & { role: Role; owner_email: string | null; traveler_count: number; member_count: number }> };
       create_place: { Args: { p_trip_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null; p_planned_date: string | null; p_planned_time: string | null }; Returns: string };
       update_place: { Args: { p_place_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null }; Returns: void };
       soft_delete_place: { Args: { p_place_id: string }; Returns: void };
@@ -212,6 +217,7 @@ export type Database = {
       soft_delete_expense: { Args: { p_expense_id: string }; Returns: void };
       restore_expense: { Args: { p_expense_id: string }; Returns: void };
       delete_schedule_item: { Args: { p_schedule_item_id: string }; Returns: void };
+      update_schedule_item: { Args: { p_schedule_item_id: string; p_time_block: string | null; p_title: string; p_description: string | null; p_transport: string | null; p_food: string | null; p_notes: string | null }; Returns: void };
       reorder_schedule_items: { Args: { p_trip_id: string; p_trip_day_id: string; p_schedule_item_ids: string[] }; Returns: void };
     };
     Enums: Record<string, never>;

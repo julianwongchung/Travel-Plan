@@ -1,4 +1,4 @@
-import { BusFront, ReceiptText, ShoppingBag, Utensils } from "lucide-react";
+import { BedDouble, BusFront, ReceiptText, ShieldCheck, ShoppingBag, Utensils } from "lucide-react";
 
 const categoryStyles = {
   food: {
@@ -15,6 +15,16 @@ const categoryStyles = {
     label: "Purchase",
     icon: ShoppingBag,
     className: "expense-category-purchase bg-violet-500/12 text-violet-700 dark:text-violet-300",
+  },
+  hotel: {
+    label: "Hotel",
+    icon: BedDouble,
+    className: "expense-category-hotel bg-blue-500/12 text-blue-700 dark:text-blue-300",
+  },
+  insurance: {
+    label: "Insurance",
+    icon: ShieldCheck,
+    className: "expense-category-insurance bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
   },
 };
 

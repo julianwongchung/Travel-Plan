@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { throwSafeActionError } from "@/lib/actions/action-errors";
 import { authedClient, nullable, value } from "@/lib/actions/helpers";
 import type { PlacePriority, PlaceType } from "@/lib/db/types";
 
@@ -23,7 +24,7 @@ export async function createPlace(tripId: string, formData: FormData) {
     p_planned_time: nullable(formData, "planned_time"),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
 }
 
@@ -40,20 +41,20 @@ export async function updatePlace(tripId: string, placeId: string, formData: For
     p_rating: nullable(formData, "rating") ? Number(value(formData, "rating")) : null,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
 }
 
 export async function softDeletePlace(tripId: string, placeId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("soft_delete_place", { p_place_id: placeId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
 }
 
 export async function restorePlace(tripId: string, placeId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("restore_place", { p_place_id: placeId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
 }

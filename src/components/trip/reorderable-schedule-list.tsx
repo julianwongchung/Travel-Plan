@@ -4,8 +4,10 @@ import {
   useState,
   useTransition,
   type CSSProperties,
+  type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   closestCenter,
   DndContext,
@@ -27,11 +29,22 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bed, ChevronDown, ChevronUp, CircleEllipsis, GripVertical, MapPin, Plane, Sparkles, Trash2, Utensils, BusFront } from "lucide-react";
-import { removeScheduleItem, reorderScheduleItems } from "@/lib/actions/trips";
-import type { ScheduleItem } from "@/lib/db/types";
-import { scheduleItemCategory } from "@/lib/utils/schedule-item-plan";
+import { Bed, ChevronDown, ChevronUp, CircleEllipsis, GripVertical, MapPin, Pencil, Plane, Plus, Sparkles, Trash2, Utensils, BusFront, X } from "lucide-react";
+import { removeScheduleItem, reorderScheduleItems, updateFlightScheduleItem, updateScheduleItemPlan } from "@/lib/actions/trips";
+import { tripKeys } from "@/lib/db/query-keys";
+import type { ScheduleItem, Traveler } from "@/lib/db/types";
+import { formatDisplayDateAndTime } from "@/lib/utils/date-format";
+import {
+  flightArrivalDayOffset,
+  flightStopoverSummary,
+  parseFlightPlanDescription,
+  scheduleItemCategory,
+  type FlightPlan,
+  type FlightPlanSegment,
+} from "@/lib/utils/schedule-item-plan";
 import { Button } from "@/components/ui/button";
+import { Field, Input, Textarea } from "@/components/ui/form-fields";
+import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
 
 function webLink(value: string | null) {
   if (!value) return null;
@@ -86,6 +99,447 @@ const categoryStyles = {
   other: { label: "Other", icon: CircleEllipsis, accent: "#64748b", badge: "bg-slate-600 text-white" },
 };
 
+function emptyFlightSegment(previous?: FlightPlanSegment): FlightPlanSegment {
+  return {
+    origin: previous?.destination ?? "",
+    destination: "",
+    departureDate: previous?.arrivalDate ?? previous?.departureDate ?? "",
+    departureTime: "",
+    arrivalDate: previous?.arrivalDate ?? previous?.departureDate ?? "",
+    arrivalTime: "",
+  };
+}
+
+function formatFlightDateTime(date: string, time: string) {
+  return formatDisplayDateAndTime(date, time, "");
+}
+
+function toLocalDateTimeValue(date: string, time: string) {
+  if (!date || !time) return "";
+  return `${date}T${time}`;
+}
+
+function splitLocalDateTimeValue(value: string) {
+  const [date = "", timeWithSeconds = ""] = value.split("T");
+  const [hour = "", minute = ""] = timeWithSeconds.split(":");
+  return {
+    date,
+    time: hour && minute ? `${hour}:${minute}` : timeWithSeconds,
+  };
+}
+
+function dateTimeInputValue(value: string | null | undefined) {
+  const cleaned = value?.trim();
+  if (!cleaned) return "";
+  const normalized = cleaned.replace(" ", "T");
+  const match = normalized.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return match ? `${match[1]}T${match[2]}` : "";
+}
+
+function hotelDetailValue(description: string | null, label: "Check-in" | "Check-out") {
+  const prefix = `${label}:`;
+  return description
+    ?.split(" - ")
+    .find((part) => part.trim().startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim() ?? "";
+}
+
+function hotelNotesValue(description: string | null) {
+  return description
+    ?.split(" - ")
+    .filter((part) => {
+      const trimmed = part.trim();
+      return !trimmed.startsWith("Check-in:") && !trimmed.startsWith("Check-out:");
+    })
+    .join(" - ")
+    .trim() ?? "";
+}
+
+function FlightScheduleItemEditor({
+  disabled,
+  flightPlan,
+  item,
+  travelers,
+  tripId,
+}: {
+  disabled: boolean;
+  flightPlan: FlightPlan;
+  item: ScheduleItem;
+  travelers: Pick<Traveler, "id" | "name">[];
+  tripId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftSegments, setDraftSegments] = useState(flightPlan.segments);
+  const [selectedPassengers, setSelectedPassengers] = useState(flightPlan.passengers);
+  const [manualPassenger, setManualPassenger] = useState(flightPlan.passengers.join(", "));
+  const [flightNotes, setFlightNotes] = useState(flightPlan.notes ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, startTransition] = useTransition();
+  const queryClient = useQueryClient();
+
+  function openEditor() {
+    setDraftSegments(flightPlan.segments);
+    setSelectedPassengers(flightPlan.passengers);
+    setManualPassenger(flightPlan.passengers.join(", "));
+    setFlightNotes(flightPlan.notes ?? "");
+    setError(null);
+    setOpen(true);
+  }
+
+  function closeEditor() {
+    if (isSaving) return;
+    setOpen(false);
+    setError(null);
+  }
+
+  function updateSegment(index: number, field: keyof FlightPlanSegment, value: string) {
+    setDraftSegments((segments) => segments.map((segment, segmentIndex) => (
+      segmentIndex === index
+        ? { ...segment, [field]: value }
+        : segment
+    )));
+  }
+
+  function updateSegmentDateTime(
+    index: number,
+    dateField: "departureDate" | "arrivalDate",
+    timeField: "departureTime" | "arrivalTime",
+    value: string,
+  ) {
+    const { date, time } = splitLocalDateTimeValue(value);
+    setDraftSegments((segments) => segments.map((segment, segmentIndex) => (
+      segmentIndex === index
+        ? { ...segment, [dateField]: date, [timeField]: time }
+        : segment
+    )));
+  }
+
+  function addSegment() {
+    setDraftSegments((segments) => [
+      ...segments,
+      emptyFlightSegment(segments.at(-1)),
+    ]);
+  }
+
+  function removeSegment(index: number) {
+    setDraftSegments((segments) => (
+      segments.length > 1 ? segments.filter((_, segmentIndex) => segmentIndex !== index) : segments
+    ));
+  }
+
+  function togglePassenger(name: string) {
+    setSelectedPassengers((current) => (
+      current.includes(name)
+        ? current.filter((passenger) => passenger !== name)
+        : [...current, name]
+    ));
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    startTransition(async () => {
+      try {
+        await updateFlightScheduleItem(tripId, item.id, formData);
+        setOpen(false);
+        setError(null);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+        ]);
+      } catch (submissionError) {
+        setError(submissionError instanceof Error ? submissionError.message : "Unable to update flight.");
+      }
+    });
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        className="size-11 shrink-0 p-0"
+        aria-label={`Edit ${item.title}`}
+        disabled={disabled}
+        onClick={openEditor}
+      >
+        <Pencil size={16} />
+      </Button>
+
+      <IOSBottomSheet open={open} title="Edit Flight" onClose={closeEditor}>
+        <form className="grid gap-4" onSubmit={handleSubmit}>
+          <input type="hidden" name="flight_segment_count" value={draftSegments.length} />
+          <div className="grid gap-3">
+            {draftSegments.map((segment, index) => (
+              <section
+                key={index}
+                className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3"
+              >
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold">Segment {index + 1}</h3>
+                  {draftSegments.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeSegment(index)}
+                      className="ios-pressable grid size-9 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--card-strong)] hover:text-[var(--danger)]"
+                      aria-label={`Remove segment ${index + 1}`}
+                    >
+                      <X size={16} />
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-3">
+                  <Field label="Origin / From">
+                    <Input
+                      name={`flight_segments.${index}.origin`}
+                      required
+                      value={segment.origin}
+                      onChange={(event) => updateSegment(index, "origin", event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Departure date & time">
+                    <Input
+                      name={`flight_segments.${index}.departure_at`}
+                      type="datetime-local"
+                      lang="en-GB"
+                      required
+                      value={toLocalDateTimeValue(segment.departureDate, segment.departureTime)}
+                      onChange={(event) => updateSegmentDateTime(index, "departureDate", "departureTime", event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Destination / To">
+                    <Input
+                      name={`flight_segments.${index}.destination`}
+                      required
+                      value={segment.destination}
+                      onChange={(event) => updateSegment(index, "destination", event.target.value)}
+                    />
+                  </Field>
+                  <Field label="Arrival date & time">
+                    <Input
+                      name={`flight_segments.${index}.arrival_at`}
+                      type="datetime-local"
+                      lang="en-GB"
+                      required
+                      value={toLocalDateTimeValue(segment.arrivalDate, segment.arrivalTime)}
+                      onChange={(event) => updateSegmentDateTime(index, "arrivalDate", "arrivalTime", event.target.value)}
+                    />
+                  </Field>
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3">
+            {travelers.length ? (
+              <div className="grid gap-2 text-sm font-semibold text-[var(--foreground)]">
+                <span>Passenger</span>
+                <div className="grid gap-2">
+                  {travelers.map((traveler) => (
+                    <label
+                      key={traveler.id}
+                      className="ios-pressable flex min-h-11 items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--card-strong)] px-3 text-sm font-semibold"
+                    >
+                      <input
+                        type="checkbox"
+                        name="flight_passenger_names"
+                        value={traveler.name}
+                        checked={selectedPassengers.includes(traveler.name)}
+                        onChange={() => togglePassenger(traveler.name)}
+                        className="size-4 accent-[var(--primary)]"
+                      />
+                      <span>{traveler.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Field label="Passenger">
+                <Input
+                  name="flight_passenger_name"
+                  required
+                  value={manualPassenger}
+                  onChange={(event) => setManualPassenger(event.target.value)}
+                />
+              </Field>
+            )}
+
+            <Field label="Notes">
+              <Textarea
+                name="flight_notes"
+                placeholder="Optional notes"
+                className="min-h-20"
+                value={flightNotes}
+                onChange={(event) => setFlightNotes(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={addSegment}
+            disabled={draftSegments.length >= 6 || isSaving}
+          >
+            <Plus size={16} aria-hidden="true" />
+            + Add connecting flight
+          </Button>
+
+          {error ? (
+            <p role="alert" className="rounded-[16px] bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button type="button" variant="secondary" onClick={closeEditor} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save flight"}
+            </Button>
+          </div>
+        </form>
+      </IOSBottomSheet>
+    </>
+  );
+}
+
+function ScheduleItemPlanEditor({
+  category,
+  disabled,
+  item,
+  tripId,
+}: {
+  category: "lodging" | "activity";
+  disabled: boolean;
+  item: ScheduleItem;
+  tripId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, startTransition] = useTransition();
+  const queryClient = useQueryClient();
+  const planType = category === "lodging" ? "hotel" : "place";
+  const title = planType === "hotel" ? "Edit Hotel" : "Edit Place";
+  const saveLabel = planType === "hotel" ? "Save hotel" : "Save place";
+
+  function closeEditor() {
+    if (isSaving) return;
+    setOpen(false);
+    setError(null);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    startTransition(async () => {
+      try {
+        await updateScheduleItemPlan(tripId, item.id, formData);
+        setOpen(false);
+        setError(null);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+        ]);
+      } catch (submissionError) {
+        setError(submissionError instanceof Error ? submissionError.message : `Unable to update ${planType}.`);
+      }
+    });
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        className="size-11 shrink-0 p-0"
+        aria-label={`Edit ${item.title}`}
+        disabled={disabled}
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+      >
+        <Pencil size={16} />
+      </Button>
+
+      <IOSBottomSheet open={open} title={title} onClose={closeEditor}>
+        <form className="grid gap-4" onSubmit={handleSubmit}>
+          <input type="hidden" name="plan_type" value={planType} />
+
+          {planType === "hotel" ? (
+            <div className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3">
+              <Field label="Hotel name">
+                <Input name="hotel_name" defaultValue={item.title} required />
+              </Field>
+              <Field label="Check-in date & time">
+                <Input
+                  name="check_in"
+                  type="datetime-local"
+                  lang="en-GB"
+                  defaultValue={dateTimeInputValue(hotelDetailValue(item.description, "Check-in") || item.time_block)}
+                />
+              </Field>
+              <Field label="Check-out date & time">
+                <Input
+                  name="check_out"
+                  type="datetime-local"
+                  lang="en-GB"
+                  defaultValue={dateTimeInputValue(hotelDetailValue(item.description, "Check-out"))}
+                />
+              </Field>
+              <Field label="Notes">
+                <Textarea
+                  name="plan_notes"
+                  placeholder="Optional notes"
+                  className="min-h-20"
+                  defaultValue={hotelNotesValue(item.description)}
+                />
+              </Field>
+            </div>
+          ) : (
+            <div className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3">
+              <Field label="Place name">
+                <Input name="place_name" defaultValue={item.title} required />
+              </Field>
+              <Field label="Time">
+                <Input name="place_time" defaultValue={item.time_block ?? ""} placeholder="18:00" />
+              </Field>
+              <Field label="Notes">
+                <Textarea
+                  name="plan_notes"
+                  placeholder="Optional notes"
+                  className="min-h-20"
+                  defaultValue={item.description ?? ""}
+                />
+              </Field>
+            </div>
+          )}
+
+          {error ? (
+            <p role="alert" className="rounded-[16px] bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Button type="button" variant="secondary" onClick={closeEditor} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : saveLabel}
+            </Button>
+          </div>
+        </form>
+      </IOSBottomSheet>
+    </>
+  );
+}
+
 function SortableScheduleItem({
   canMoveDown,
   canMoveUp,
@@ -95,6 +549,7 @@ function SortableScheduleItem({
   item,
   onMoveDown,
   onMoveUp,
+  travelers,
   tripId,
 }: {
   canMoveDown: boolean;
@@ -105,6 +560,7 @@ function SortableScheduleItem({
   item: ScheduleItem;
   onMoveDown: () => void;
   onMoveUp: () => void;
+  travelers: Pick<Traveler, "id" | "name">[];
   tripId: string;
 }) {
   const {
@@ -122,7 +578,12 @@ function SortableScheduleItem({
   const category = scheduleItemCategory(item);
   const categoryStyle = categoryStyles[category];
   const CategoryIcon = categoryStyle.icon;
-  const detail = item.description ?? item.time_block ?? (mapLink ? null : item.notes);
+  const flightPlan = parseFlightPlanDescription(item.description);
+  const canEditPlanItem = editable && !flightPlan && (category === "lodging" || category === "activity");
+  const flightPassengers = flightPlan?.passengers.join(", ") ?? null;
+  const detail = flightPlan
+    ? [flightStopoverSummary(flightPlan.segments), flightPassengers ? `Passengers: ${flightPassengers}` : null].filter(Boolean).join(" - ")
+    : (item.description ?? item.time_block ?? (mapLink ? null : item.notes));
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -172,6 +633,19 @@ function SortableScheduleItem({
           {detail && detail !== item.time_block ? (
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted-foreground)]">{detail}</p>
           ) : null}
+          {flightPlan ? (
+            <div className="mt-2 grid gap-1.5">
+              {flightPlan.segments.map((segment, segmentIndex) => (
+                <p
+                  key={`${segment.origin}-${segment.destination}-${segmentIndex}`}
+                  className="rounded-[12px] bg-white/55 px-2 py-1 text-[11px] font-semibold leading-4 text-[var(--muted-foreground)] dark:bg-white/10"
+                >
+                  {segmentIndex + 1}. {segment.origin} to {segment.destination} / {formatFlightDateTime(segment.departureDate, segment.departureTime)} to {formatFlightDateTime(segment.arrivalDate, segment.arrivalTime)}
+                  {flightArrivalDayOffset(segment) ? ` (${flightArrivalDayOffset(segment)})` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -185,6 +659,25 @@ function SortableScheduleItem({
             >
               <MapPin size={17} />
             </a>
+          ) : null}
+
+          {editable && flightPlan ? (
+            <FlightScheduleItemEditor
+              disabled={isPending}
+              flightPlan={flightPlan}
+              item={item}
+              travelers={travelers}
+              tripId={tripId}
+            />
+          ) : null}
+
+          {canEditPlanItem ? (
+            <ScheduleItemPlanEditor
+              category={category}
+              disabled={isPending}
+              item={item}
+              tripId={tripId}
+            />
           ) : null}
 
           {editable ? (
@@ -234,20 +727,23 @@ export function ReorderableScheduleList({
   tripDayId,
   items,
   editable,
+  travelers = [],
 }: {
   tripId: string;
   tripDayId: string;
   items: ScheduleItem[];
   editable: boolean;
+  travelers?: Pick<Traveler, "id" | "name">[];
 }) {
   const [orderedItems, setOrderedItems] = useState(() => ordered(items));
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
   const sensors = useSensors(
     useSensor(NonTouchPointerSensor, {
       activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { distance: 4 },
+      activationConstraint: { delay: 200, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -270,6 +766,10 @@ export function ReorderableScheduleList({
           tripDayId,
           nextItems.map((item) => item.id),
         );
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+        ]);
       } catch {
         setOrderedItems(previousItems);
       }
@@ -317,6 +817,7 @@ export function ReorderableScheduleList({
               isPending={isPending}
               onMoveUp={() => moveBy(index, -1)}
               onMoveDown={() => moveBy(index, 1)}
+              travelers={travelers}
             />
           ))}
         </div>

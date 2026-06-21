@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Bed, ChevronLeft, MapPin, Plane } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Bed, CalendarDays, ChevronLeft, MapPin, Plane, Plus, X } from "lucide-react";
 import { addScheduleItem } from "@/lib/actions/trips";
+import { tripKeys } from "@/lib/db/query-keys";
+import type { Traveler } from "@/lib/db/types";
+import { formatDisplayDateTime } from "@/lib/utils/date-format";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-fields";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
@@ -37,27 +40,65 @@ const planTitles: Record<PlanType, string> = {
   place: "Add Place",
 };
 
+function FlightDateTimeInput({ label, name }: { label: string; name: string }) {
+  const [value, setValue] = useState("");
+  const displayValue = value ? formatDisplayDateTime(value) : "DD/MM/YYYY HH:mm";
+
+  return (
+    <label className="grid min-w-0 gap-2 text-sm font-semibold text-[var(--foreground)]">
+      <span>{label}</span>
+      <span className="relative block min-h-12 min-w-0">
+        <span
+          aria-hidden="true"
+          className="flex min-h-12 w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--muted)] px-4 py-3 text-base text-[var(--foreground)] outline-none transition sm:text-sm"
+        >
+          <span className={value ? "tabular-nums" : "text-[var(--muted-foreground)]"}>
+            {displayValue}
+          </span>
+          <CalendarDays size={17} className="shrink-0 text-[var(--muted-foreground)]" />
+        </span>
+        <input
+          name={name}
+          type="datetime-local"
+          lang="en-GB"
+          required
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          aria-label={label}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </span>
+    </label>
+  );
+}
+
 export function AddItineraryPlan({
   tripId,
   dayId,
   dayDate,
   dayNumber,
+  travelers = [],
 }: {
   tripId: string;
   dayId: string | null;
   dayDate: string;
   dayNumber: number;
+  travelers?: Pick<Traveler, "id" | "name">[];
 }) {
   const [open, setOpen] = useState(false);
   const [planType, setPlanType] = useState<PlanType | null>(null);
+  const [flightSegmentIds, setFlightSegmentIds] = useState([0]);
+  const [nextFlightSegmentId, setNextFlightSegmentId] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   function closeSheet() {
     if (isPending) return;
     setOpen(false);
     setPlanType(null);
+    setFlightSegmentIds([0]);
+    setNextFlightSegmentId(1);
     setError(null);
   }
 
@@ -68,8 +109,14 @@ export function AddItineraryPlan({
         await addScheduleItem(tripId, formData);
         setOpen(false);
         setPlanType(null);
+        setFlightSegmentIds([0]);
+        setNextFlightSegmentId(1);
         setError(null);
-        router.refresh();
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.days(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+        ]);
       } catch (submissionError) {
         setError(
           submissionError instanceof Error
@@ -78,6 +125,26 @@ export function AddItineraryPlan({
         );
       }
     });
+  }
+
+  function choosePlanType(nextPlanType: PlanType) {
+    setPlanType(nextPlanType);
+    setError(null);
+    if (nextPlanType === "flight") {
+      setFlightSegmentIds([0]);
+      setNextFlightSegmentId(1);
+    }
+  }
+
+  function addFlightSegment() {
+    setFlightSegmentIds((current) => [...current, nextFlightSegmentId]);
+    setNextFlightSegmentId((current) => current + 1);
+  }
+
+  function removeFlightSegment(segmentId: number) {
+    setFlightSegmentIds((current) => current.length > 1
+      ? current.filter((id) => id !== segmentId)
+      : current);
   }
 
   return (
@@ -106,6 +173,8 @@ export function AddItineraryPlan({
               type="button"
               onClick={() => {
                 setPlanType(null);
+                setFlightSegmentIds([0]);
+                setNextFlightSegmentId(1);
                 setError(null);
               }}
               className="ios-pressable -mt-2 inline-flex min-h-11 w-fit items-center gap-1 rounded-full px-2 text-sm font-semibold text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
@@ -116,25 +185,102 @@ export function AddItineraryPlan({
 
             {planType === "flight" ? (
               <>
-                <Field label="Flight number">
-                  <Input
-                    name="flight_number"
-                    required
-                    placeholder="SQ 123"
-                    autoComplete="off"
-                  />
-                </Field>
-                <Field label="Flight time">
-                  <Input name="flight_time" type="time" />
-                </Field>
-                <Field label="Passenger name">
-                  <Input
-                    name="passenger_name"
-                    required
-                    placeholder="Passenger name"
-                    autoComplete="name"
-                  />
-                </Field>
+                <input type="hidden" name="flight_segment_count" value={flightSegmentIds.length} />
+                <div className="grid gap-3">
+                  {flightSegmentIds.map((segmentId, segmentIndex) => (
+                    <section
+                      key={segmentId}
+                      className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3"
+                    >
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <h3 className="text-sm font-bold">Segment {segmentIndex + 1}</h3>
+                        {flightSegmentIds.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeFlightSegment(segmentId)}
+                            className="ios-pressable grid size-9 place-items-center rounded-full text-[var(--muted-foreground)] hover:bg-[var(--card-strong)] hover:text-[var(--danger)]"
+                            aria-label={`Remove segment ${segmentIndex + 1}`}
+                          >
+                            <X size={16} />
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-3">
+                        <Field label="Origin / From">
+                          <Input
+                            name={`flight_segments.${segmentIndex}.origin`}
+                            required
+                            placeholder="Kuching"
+                            autoComplete="off"
+                          />
+                        </Field>
+                        <FlightDateTimeInput label="Departure date & time" name={`flight_segments.${segmentIndex}.departure_at`} />
+                        <Field label="Destination / To">
+                          <Input
+                            name={`flight_segments.${segmentIndex}.destination`}
+                            required
+                            placeholder={segmentIndex === 0 ? "Kuala Lumpur" : "Osaka"}
+                            autoComplete="off"
+                          />
+                        </Field>
+                        <FlightDateTimeInput label="Arrival date & time" name={`flight_segments.${segmentIndex}.arrival_at`} />
+                      </div>
+                    </section>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--muted)] p-3">
+                  {travelers.length ? (
+                    <div className="grid gap-2 text-sm font-semibold text-[var(--foreground)]">
+                      <span>Passenger</span>
+                      <div className="grid gap-2">
+                        {travelers.map((traveler) => (
+                          <label
+                            key={traveler.id}
+                            className="ios-pressable flex min-h-11 items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--card-strong)] px-3 text-sm font-semibold"
+                          >
+                            <input
+                              type="checkbox"
+                              name="flight_passenger_names"
+                              value={traveler.name}
+                              className="size-4 accent-[var(--primary)]"
+                            />
+                            <span>{traveler.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <Field label="Passenger">
+                      <Input
+                        name="flight_passenger_name"
+                        required
+                        placeholder="Julian"
+                        autoComplete="name"
+                      />
+                    </Field>
+                  )}
+
+                  <Field label="Notes">
+                    <Textarea
+                      name="flight_notes"
+                      placeholder="Optional notes"
+                      className="min-h-20"
+                    />
+                  </Field>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={addFlightSegment}
+                  disabled={flightSegmentIds.length >= 6}
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  + Add connecting flight
+                </Button>
               </>
             ) : null}
 
@@ -150,10 +296,10 @@ export function AddItineraryPlan({
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Check-in">
-                    <Input name="check_in" type="datetime-local" />
+                    <Input name="check_in" type="datetime-local" lang="en-GB" />
                   </Field>
                   <Field label="Check-out">
-                    <Input name="check_out" type="datetime-local" />
+                    <Input name="check_out" type="datetime-local" lang="en-GB" />
                   </Field>
                 </div>
               </>
@@ -175,13 +321,15 @@ export function AddItineraryPlan({
               </>
             ) : null}
 
-            <Field label="Notes">
-              <Textarea
-                name="plan_notes"
-                placeholder="Optional notes"
-                className="min-h-24"
-              />
-            </Field>
+            {planType !== "flight" ? (
+              <Field label="Notes">
+                <Textarea
+                  name="plan_notes"
+                  placeholder="Optional notes"
+                  className="min-h-24"
+                />
+              </Field>
+            ) : null}
 
             {error ? (
               <p
@@ -192,9 +340,14 @@ export function AddItineraryPlan({
               </p>
             ) : null}
 
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : `Save ${planTitles[planType].replace("Add ", "")}`}
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <Button type="button" variant="secondary" onClick={closeSheet} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Saving..." : `Save ${planTitles[planType].replace("Add ", "")}`}
+              </Button>
+            </div>
           </form>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -205,7 +358,7 @@ export function AddItineraryPlan({
                   key={option.type}
                   type="button"
                   aria-label={option.label}
-                  onClick={() => setPlanType(option.type)}
+                  onClick={() => choosePlanType(option.type)}
                   className={`ios-pressable grid min-h-28 min-w-0 place-items-center content-center gap-2 rounded-[22px] border p-3 text-center ${option.className}`}
                 >
                   <span className="grid size-10 place-items-center rounded-full bg-white/55 dark:bg-white/10">

@@ -8,6 +8,8 @@ describe("ExpenseCategoryBadge", () => {
     ["food", "Food", "expense-category-food"],
     ["transport", "Transport", "expense-category-transport"],
     ["purchase", "Purchase", "expense-category-purchase"],
+    ["hotel", "Hotel", "expense-category-hotel"],
+    ["insurance", "Insurance", "expense-category-insurance"],
   ])("renders %s with its category color and icon treatment", (category, label, className) => {
     const markup = renderToStaticMarkup(
       createElement(ExpenseCategoryBadge, { category }),

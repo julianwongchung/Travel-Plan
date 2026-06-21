@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { throwSafeActionError } from "@/lib/actions/action-errors";
 import { authedClient, value } from "@/lib/actions/helpers";
 import { normalizeEmail } from "@/lib/utils/email";
 
@@ -15,7 +16,7 @@ export async function inviteTripMember(tripId: string, formData: FormData) {
     p_role: roleSchema.parse(value(formData, "role", "viewer")),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}`);
 }
 
@@ -26,20 +27,20 @@ export async function updateTripMemberRole(tripId: string, memberId: string, for
     p_role: roleSchema.parse(value(formData, "role", "viewer")),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function removeTripMember(tripId: string, memberId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("remove_trip_member", { p_member_id: memberId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}`);
 }
 
 export async function cancelTripInvitation(tripId: string, invitationId: string) {
   const supabase = await authedClient();
   const { error } = await supabase.rpc("cancel_trip_invitation", { p_invitation_id: invitationId });
-  if (error) throw new Error(error.message);
+  if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}`);
 }

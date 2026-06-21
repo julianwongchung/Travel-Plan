@@ -12,8 +12,16 @@ import {
 } from "lucide-react";
 import { TripDaySelector } from "@/components/trip/trip-day-selector";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils/date-format";
 import {
+  flightArrivalDayOffset,
+  flightPlanTimeForDate,
+  flightPlanTouchesDate,
+  flightRouteSummary,
+  flightStopoverSummary,
+  parseFlightPlanDescription,
   scheduleItemCategory,
+  type FlightPlanSegment,
   type ScheduleItemCategory,
 } from "@/lib/utils/schedule-item-plan";
 
@@ -87,11 +95,11 @@ const structuredLabels = new Map([
 ]);
 
 function dayDate(date: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
+  return formatDisplayDate(date);
+}
+
+function shortDate(date: string) {
+  return formatDisplayDate(date);
 }
 
 function externalLink(value: string | null) {
@@ -105,9 +113,32 @@ function externalLink(value: string | null) {
   }
 }
 
+function displayStructuredValue(value: string) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
+    ? formatDisplayDateTime(value)
+    : value;
+}
+
 function itemDetails(item: OverviewScheduleItem, category: ScheduleItemCategory) {
   const fields: Array<{ label: string; value: string }> = [];
   const noteParts: string[] = [];
+  const flightPlan = parseFlightPlanDescription(item.description);
+
+  if (flightPlan) {
+    fields.push(
+      { label: "Route", value: flightRouteSummary(flightPlan.segments) },
+      { label: "Connection", value: flightStopoverSummary(flightPlan.segments) },
+      { label: "Passengers", value: flightPlan.passengers.join(", ") || "Not set" },
+    );
+    if (flightPlan.notes) noteParts.push(flightPlan.notes);
+
+    return {
+      fields,
+      flightPlan,
+      mapLink: null,
+      notes: noteParts.join(" - ") || null,
+    };
+  }
 
   item.description
     ?.split(" - ")
@@ -120,7 +151,7 @@ function itemDetails(item: OverviewScheduleItem, category: ScheduleItemCategory)
       const value = separator > 0 ? part.slice(separator + 1).trim() : "";
 
       if (label && value) {
-        fields.push({ label, value });
+        fields.push({ label, value: displayStructuredValue(value) });
       } else {
         noteParts.push(part);
       }
@@ -150,9 +181,43 @@ function itemDetails(item: OverviewScheduleItem, category: ScheduleItemCategory)
 
   return {
     fields,
+    flightPlan,
     mapLink,
     notes: noteParts.join(" - ") || null,
   };
+}
+
+function itemAppearsOnDay(item: OverviewScheduleItem, day: OverviewDay) {
+  if (item.trip_day_id === day.id) return true;
+
+  const flightPlan = parseFlightPlanDescription(item.description);
+  return flightPlan ? flightPlanTouchesDate(flightPlan, day.date) : false;
+}
+
+function itemTimeForDay(item: OverviewScheduleItem, day: OverviewDay) {
+  const flightPlan = parseFlightPlanDescription(item.description);
+  return flightPlan ? flightPlanTimeForDate(flightPlan, day.date) ?? item.time_block : item.time_block;
+}
+
+function flightTimelineStops(segments: FlightPlanSegment[]) {
+  return segments.flatMap((segment, segmentIndex) => ([
+    {
+      kind: "Departure",
+      place: segment.origin,
+      date: segment.departureDate,
+      time: segment.departureTime,
+      offset: null,
+      key: `${segmentIndex}-departure-${segment.origin}-${segment.departureTime}`,
+    },
+    {
+      kind: "Arrival",
+      place: segment.destination,
+      date: segment.arrivalDate,
+      time: segment.arrivalTime,
+      offset: flightArrivalDayOffset(segment),
+      key: `${segmentIndex}-arrival-${segment.destination}-${segment.arrivalTime}`,
+    },
+  ]));
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -184,7 +249,7 @@ export function OverviewDayTabs({
   );
   const selectedDay = days[selectedDayIndex];
   const selectedItems = selectedDay
-    ? scheduleItems.filter((item) => item.trip_day_id === selectedDay.id)
+    ? scheduleItems.filter((item) => itemAppearsOnDay(item, selectedDay))
     : [];
   const selectedItem = selectedItems.find((item) => item.id === selectedItemId) ?? null;
   const selectedCategory = selectedItem ? scheduleItemCategory(selectedItem) : null;
@@ -204,6 +269,7 @@ export function OverviewDayTabs({
         days={days}
         selectedDayId={effectiveSelectedDayId}
         onSelectDay={selectDay}
+        variant="overview"
       />
 
       {selectedDay ? (
@@ -218,33 +284,83 @@ export function OverviewDayTabs({
           </div>
 
           {selectedItems.length ? (
-            <div className="content-surface overflow-hidden rounded-[20px] px-3 sm:px-4">
+            <div
+              data-overview-timeline
+              className="relative grid gap-3 pl-8 before:absolute before:bottom-5 before:left-[13px] before:top-5 before:w-px before:bg-[var(--border)]"
+            >
               {selectedItems.map((item) => {
                 const category = scheduleItemCategory(item);
                 const kind = categoryStyles[category];
                 const Icon = kind.icon;
+                const displayTime = itemTimeForDay(item, selectedDay);
+                const flightPlan = parseFlightPlanDescription(item.description);
+                const flightStops = flightPlan ? flightTimelineStops(flightPlan.segments) : [];
 
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-label={`View ${item.title} details`}
-                    data-itinerary-category={category}
-                    onClick={() => setSelectedItemId(item.id)}
-                    className="ios-pressable flex min-h-12 w-full min-w-0 items-center gap-3 border-b border-[var(--border)] py-2.5 text-left last:border-b-0"
-                  >
-                    <span className={`grid size-8 shrink-0 place-items-center rounded-[11px] ${kind.iconClass}`}>
-                      <Icon size={16} />
+                  <div key={item.id} className="relative min-w-0">
+                    <span
+                      data-overview-timeline-dot
+                      className="absolute -left-[31px] top-4 z-10 grid size-6 place-items-center rounded-full bg-blue-500/10"
+                    >
+                      <span className="size-3 rounded-full bg-[var(--primary)] ring-4 ring-white dark:ring-slate-950" />
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)] sm:text-base">
-                      {item.title}
-                    </span>
-                    {item.time_block ? (
-                      <span className="shrink-0 text-sm font-medium tabular-nums text-[var(--muted-foreground)]">
-                        {item.time_block}
+                    <button
+                      type="button"
+                      aria-label={`View ${item.title} details`}
+                      data-itinerary-category={category}
+                      onClick={() => setSelectedItemId(item.id)}
+                      className="ios-pressable w-full min-w-0 rounded-[18px] border border-slate-100 bg-white/90 p-3 text-left shadow-sm transition dark:border-white/10 dark:bg-[var(--card-strong)] sm:p-4"
+                    >
+                      <span className="flex min-w-0 items-start gap-3">
+                        <span className={`grid size-9 shrink-0 place-items-center rounded-[13px] ${kind.iconClass}`}>
+                          <Icon size={17} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words text-sm font-bold text-[var(--foreground)] sm:text-base">
+                            {item.title}
+                          </span>
+                          {displayTime && !flightStops.length ? (
+                            <span className="mt-0.5 block text-xs font-medium tabular-nums text-[var(--muted-foreground)]">
+                              {displayTime}
+                            </span>
+                          ) : null}
+                        </span>
+                        {displayTime && !flightStops.length ? (
+                          <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--muted-foreground)]">
+                            {displayTime}
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </button>
+
+                      {flightStops.length ? (
+                        <span className="mt-3 grid gap-2">
+                          {flightStops.map((stop) => (
+                            <span
+                              key={stop.key}
+                              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border border-blue-100 bg-blue-50/70 px-3 py-2 dark:border-blue-400/15 dark:bg-blue-400/10"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-bold text-[var(--foreground)]">
+                                  {stop.place}
+                                </span>
+                                <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">
+                                  {stop.kind}
+                                </span>
+                              </span>
+                              <span className="text-right">
+                                <span className="block text-base font-extrabold tabular-nums text-[var(--foreground)]">
+                                  {stop.time}
+                                </span>
+                                <span className="mt-0.5 block text-[11px] font-medium text-[var(--muted-foreground)]">
+                                  {shortDate(stop.date)}{stop.offset ? ` (${stop.offset})` : ""}
+                                </span>
+                              </span>
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -293,6 +409,31 @@ export function OverviewDayTabs({
                 <DetailRow key={`${field.label}-${index}`} label={field.label} value={field.value} />
               ))}
             </dl>
+
+            {selectedDetails.flightPlan ? (
+              <div className="grid gap-2 rounded-[20px] border border-[var(--border)] bg-[var(--card-strong)] p-3">
+                <p className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                  Segments
+                </p>
+                {selectedDetails.flightPlan.segments.map((segment, index) => (
+                  <article
+                    key={`${segment.origin}-${segment.destination}-${index}`}
+                    className="rounded-[16px] bg-[var(--muted)] p-3"
+                  >
+                    <h4 className="text-sm font-bold">
+                      Segment {index + 1}: {segment.origin} to {segment.destination}
+                    </h4>
+                    <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
+                      Depart {shortDate(segment.departureDate)}, {segment.departureTime}
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-[var(--muted-foreground)]">
+                      Arrive {shortDate(segment.arrivalDate)}, {segment.arrivalTime}
+                      {flightArrivalDayOffset(segment) ? ` (${flightArrivalDayOffset(segment)})` : ""}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
 
             {selectedDetails.notes ? (
               <div className="rounded-[20px] border border-[var(--border)] bg-[var(--card-strong)] p-4">

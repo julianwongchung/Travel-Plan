@@ -44,8 +44,9 @@ Build V1 with these pages only:
 1. `/login`
 2. `/trips`
 3. `/trips/[tripId]/overview`
-4. `/trips/[tripId]/places`
-5. `/trips/[tripId]/expenses`
+4. `/trips/[tripId]/trip-plan`
+5. `/trips/[tripId]/places`
+6. `/trips/[tripId]/expenses`
 
 Also build:
 
@@ -54,6 +55,13 @@ Also build:
 - Invite Member flow
 - Complete Trip flow
 - Archive Trip flow
+
+Page responsibilities:
+
+- Overview is a read-only dashboard. It must not contain add, edit, delete, or reorder controls.
+- Trip Plan is the editable itinerary planning page. It owns day-tab planning, add/edit/delete/reorder schedule item controls, and must respect role permissions.
+- Places is for saved places.
+- Expenses is for expense tracking.
 
 Do not add these unless explicitly requested later:
 
@@ -309,6 +317,7 @@ src/
       trips/page.tsx
       trips/[tripId]/layout.tsx
       trips/[tripId]/overview/page.tsx
+      trips/[tripId]/trip-plan/page.tsx
       trips/[tripId]/places/page.tsx
       trips/[tripId]/expenses/page.tsx
   components/
@@ -345,7 +354,8 @@ Playwright E2E should cover:
 - My Trips only shows accessible trips
 - Create private trip
 - Open trip workspace
-- Add overview data
+- Overview is read-only and shows summary data
+- Add/edit/delete/reorder itinerary items from Trip Plan
 - Add place
 - Add expense
 - Owner invites editor

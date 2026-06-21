@@ -12,7 +12,7 @@ describe("TripCardActions", () => {
 
     expect(screen.getByRole("link", { name: "Open" }).getAttribute("href")).toBe("/trips/trip-1/overview");
     expect(screen.getByRole("button", { name: "Invite People" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Archive" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Archive trip" })).toBeTruthy();
   });
 
   it("opens the invite sheet directly from the trip card", () => {

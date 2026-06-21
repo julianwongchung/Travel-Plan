@@ -1,24 +1,84 @@
 import { describe, expect, it } from "vitest";
 import {
   buildScheduleItemPlan,
+  flightArrivalDayOffset,
+  flightRouteSummary,
+  flightStopoverSummary,
+  parseFlightPlanDescription,
   scheduleItemCategory,
 } from "@/lib/utils/schedule-item-plan";
 
 describe("schedule item plans", () => {
   it("builds a flight item with a stable flight marker", () => {
-    expect(buildScheduleItemPlan({
+    const item = buildScheduleItemPlan({
       planType: "flight",
-      flightNumber: "SQ 123",
-      flightTime: "08:30",
-      passengerName: "Julian Wong",
+      segments: [{
+        origin: "Kuching",
+        destination: "Kuala Lumpur",
+        departureDate: "2026-11-20",
+        departureTime: "18:00",
+        arrivalDate: "2026-11-20",
+        arrivalTime: "20:00",
+      }],
+      passengers: ["Julian", "Clarrie"],
       notes: "Window seat",
-    })).toEqual({
-      title: "Flight SQ 123",
-      timeBlock: "08:30",
-      description: "Passenger: Julian Wong - Window seat",
+    });
+
+    expect(item.title).toBe("Kuching \u2192 Kuala Lumpur");
+    expect(item.timeBlock).toBe("18:00");
+    expect(item.transport).toBe("Flight");
+    expect(item.notes).toBeNull();
+    expect(parseFlightPlanDescription(item.description)).toEqual({
+      segments: [{
+        origin: "Kuching",
+        destination: "Kuala Lumpur",
+        departureDate: "2026-11-20",
+        departureTime: "18:00",
+        arrivalDate: "2026-11-20",
+        arrivalTime: "20:00",
+      }],
+      passengers: ["Julian", "Clarrie"],
+      notes: "Window seat",
+    });
+  });
+
+  it("builds connecting flights as one grouped flight plan", () => {
+    const segments = [
+      {
+        origin: "Kuching",
+        destination: "Kuala Lumpur",
+        departureDate: "2026-11-20",
+        departureTime: "18:00",
+        arrivalDate: "2026-11-20",
+        arrivalTime: "20:00",
+      },
+      {
+        origin: "Kuala Lumpur",
+        destination: "Osaka",
+        departureDate: "2026-11-20",
+        departureTime: "22:40",
+        arrivalDate: "2026-11-21",
+        arrivalTime: "05:50",
+      },
+    ];
+    const item = buildScheduleItemPlan({
+      planType: "flight",
+      segments,
+      passengers: ["Julian"],
+      notes: "Overnight flight",
+    });
+
+    expect(item).toEqual({
+      title: "Kuching \u2192 Kuala Lumpur \u2192 Osaka",
+      timeBlock: "18:00",
+      description: item.description,
       transport: "Flight",
       notes: null,
     });
+    expect(flightRouteSummary(segments)).toBe("Kuching \u2192 Kuala Lumpur \u2192 Osaka");
+    expect(flightStopoverSummary(segments)).toBe("1 stop in Kuala Lumpur");
+    expect(flightArrivalDayOffset(segments[1])).toBe("+1 day");
+    expect(parseFlightPlanDescription(item.description)?.notes).toBe("Overnight flight");
   });
 
   it("builds lodging details without requiring a schema category column", () => {

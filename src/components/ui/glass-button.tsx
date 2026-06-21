@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export type GlassButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "glass";
@@ -14,13 +14,13 @@ const variants: Record<GlassButtonVariant, string> = {
 
 const base = "ios-pressable inline-flex min-h-11 min-w-0 max-w-full items-center justify-center gap-1 whitespace-normal rounded-full border px-3.5 py-1 text-center text-[13px] font-semibold leading-5 disabled:cursor-not-allowed disabled:opacity-50";
 
-export function GlassButton({
+export const GlassButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: GlassButtonVariant }>(function GlassButton({
   className,
   variant = "primary",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: GlassButtonVariant }) {
-  return <button className={cn(base, variants[variant], className)} {...props} />;
-}
+}, ref) {
+  return <button ref={ref} className={cn(base, variants[variant], className)} {...props} />;
+});
 
 export function GlassButtonLink({
   className,
