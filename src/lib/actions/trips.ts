@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { actionValidationError, throwSafeActionError } from "@/lib/actions/action-errors";
-import { authedClient, nullable, value } from "@/lib/actions/helpers";
+import { actionValidationError, normalizeActionError, throwSafeActionError } from "@/lib/actions/action-errors";
+import { authedAdminClient, nullable, value } from "@/lib/actions/helpers";
 import type { Currency } from "@/lib/db/types";
 import { getCurrencyForCountry } from "@/lib/utils/country-currency";
 import { validateTripCreationDates } from "@/lib/utils/trip-days";
@@ -12,7 +12,8 @@ import { generateGoogleMapsLink } from "@/lib/utils/google-maps";
 import { buildScheduleItemPlan, type FlightPlanSegment } from "@/lib/utils/schedule-item-plan";
 import { parseTravelerNames } from "@/lib/utils/travelers";
 
-const currencySchema = z.enum(["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD"]);
+const currencySchema = z.enum(["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD", "CNY"]);
+const uuidSchema = z.string().uuid();
 const schedulePlanInputSchema = z.discriminatedUnion("planType", [
   z.object({
     planType: z.literal("flight"),
@@ -110,8 +111,30 @@ function schedulePlanInputFromFormData(formData: FormData) {
   throw new Error("Unsupported plan type.");
 }
 
+type CreateTripRpcInput = {
+  p_name: string;
+  p_start_date: string | null;
+  p_end_date: string | null;
+  p_default_currency: Currency;
+  p_traveler_names: string[];
+};
+
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+};
+
+function isCurrencyConstraintError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const details = error as SupabaseErrorLike;
+  const message = details.message?.toLowerCase() ?? "";
+  return details.code === "23514"
+    || message.includes("trips_currency_check")
+    || message.includes("check constraint");
+}
+
 async function createTripRecord(formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const selectedCountry = nullable(formData, "country");
   const defaultCurrency = selectedCountry
     ? getCurrencyForCountry(selectedCountry)
@@ -121,17 +144,28 @@ async function createTripRecord(formData: FormData) {
   const endDate = nullable(formData, "end_date");
   const dateValidation = validateTripCreationDates(startDate, endDate);
   if (!dateValidation.ok) throw actionValidationError(dateValidation.message);
-  const { data, error } = await supabase.rpc("create_trip_with_travelers", {
+  const tripInput: CreateTripRpcInput = {
     p_name: value(formData, "name", "New Trip"),
     p_start_date: startDate,
     p_end_date: endDate,
     p_default_currency: defaultCurrency as Currency,
     p_traveler_names: travelerNames,
-  });
+  };
 
+  const { data: createdTripId, error } = await supabase.rpc("create_trip_with_travelers", tripInput);
+
+  if (error && isCurrencyConstraintError(error)) throwSafeActionError(error);
   if (error) throwSafeActionError(error);
+
   revalidatePath("/trips");
-  return data as string;
+  return createdTripId as string;
+}
+
+function isRedirectError(error: unknown) {
+  return typeof error === "object"
+    && error !== null
+    && "digest" in error
+    && String((error as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT");
 }
 
 export async function createTrip(formData: FormData) {
@@ -140,11 +174,16 @@ export async function createTrip(formData: FormData) {
 }
 
 export async function createTripFromModal(formData: FormData) {
-  return createTripRecord(formData);
+  try {
+    return { ok: true as const, tripId: await createTripRecord(formData) };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return { ok: false as const, error: normalizeActionError(error) };
+  }
 }
 
 export async function updateTrip(tripId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const defaultCurrency = currencySchema.parse(value(formData, "default_currency", "MYR"));
   const startDate = nullable(formData, "start_date");
   const endDate = nullable(formData, "end_date");
@@ -164,7 +203,7 @@ export async function updateTrip(tripId: string, formData: FormData) {
 }
 
 export async function completeTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("complete_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}`);
@@ -172,7 +211,7 @@ export async function completeTrip(tripId: string) {
 }
 
 export async function archiveTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("archive_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath("/trips");
@@ -180,14 +219,14 @@ export async function archiveTrip(tripId: string) {
 }
 
 export async function restoreArchivedTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("restore_archived_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath("/trips");
 }
 
 export async function softDeleteTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("soft_delete_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath("/trips");
@@ -195,14 +234,14 @@ export async function softDeleteTrip(tripId: string) {
 }
 
 export async function restoreDeletedTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("restore_deleted_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath("/trips");
 }
 
 export async function leaveTrip(tripId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("leave_trip", { p_trip_id: tripId });
   if (error) throwSafeActionError(error);
   revalidatePath("/trips");
@@ -210,7 +249,7 @@ export async function leaveTrip(tripId: string) {
 }
 
 export async function addTraveler(tripId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("add_traveler", {
     p_trip_id: tripId,
     p_name: value(formData, "name"),
@@ -220,7 +259,7 @@ export async function addTraveler(tripId: string, formData: FormData) {
 }
 
 export async function addScheduleItem(tripId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   let tripDayId = nullable(formData, "trip_day_id");
   if (!tripDayId) {
     const tripDayDate = value(formData, "trip_day_date");
@@ -274,7 +313,7 @@ export async function addScheduleItem(tripId: string, formData: FormData) {
 }
 
 export async function removeScheduleItem(tripId: string, scheduleItemId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("delete_schedule_item", { p_schedule_item_id: scheduleItemId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/overview`);
@@ -282,7 +321,7 @@ export async function removeScheduleItem(tripId: string, scheduleItemId: string)
 }
 
 export async function updateFlightScheduleItem(tripId: string, scheduleItemId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const plan = buildScheduleItemPlan(schedulePlanInputSchema.parse({
     planType: "flight",
     segments: flightSegmentsFromFormData(formData),
@@ -304,7 +343,7 @@ export async function updateFlightScheduleItem(tripId: string, scheduleItemId: s
 }
 
 export async function updateScheduleItemPlan(tripId: string, scheduleItemId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const plan = buildScheduleItemPlan(schedulePlanInputFromFormData(formData));
   const { error } = await supabase.rpc("update_schedule_item", {
     p_schedule_item_id: scheduleItemId,
@@ -324,15 +363,33 @@ export async function reorderScheduleItems(
   tripId: string,
   tripDayId: string,
   scheduleItemIds: string[],
+  targetDayDate?: string,
+  targetDayNumber?: number,
 ) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
+  let targetTripDayId = tripDayId;
+  if (!uuidSchema.safeParse(targetTripDayId).success) {
+    if (!targetDayDate) {
+      throw actionValidationError("The selected trip day is required.");
+    }
+
+    const { data: ensuredTripDayId, error: tripDayError } = await supabase.rpc("ensure_trip_day", {
+      p_trip_id: tripId,
+      p_date: targetDayDate,
+      p_day_number: Number.isFinite(targetDayNumber) ? targetDayNumber : null,
+    });
+    if (tripDayError) throwSafeActionError(tripDayError);
+    targetTripDayId = uuidSchema.parse(ensuredTripDayId);
+  }
+
   const orderedIds = z.array(z.string().uuid()).parse(scheduleItemIds);
   const { error } = await supabase.rpc("reorder_schedule_items", {
     p_trip_id: tripId,
-    p_trip_day_id: tripDayId,
+    p_trip_day_id: targetTripDayId,
     p_schedule_item_ids: orderedIds,
   });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/overview`);
   revalidatePath(`/trips/${tripId}/trip-plan`);
 }
+

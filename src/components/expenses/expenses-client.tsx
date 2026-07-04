@@ -10,6 +10,8 @@ import { softDeleteExpense } from "@/lib/actions/expenses";
 import { useTripExpenses, type TripExpenseData } from "@/lib/db/client-queries";
 import type { Trip } from "@/lib/db/types";
 import {
+  calculateEstimatedMyr,
+  estimateAmountInMyr,
   summarizeByCategoryCurrency,
   summarizeByCurrency,
 } from "@/lib/utils/expense-calculations";
@@ -26,20 +28,32 @@ function confirmDeleteExpense(event: FormEvent<HTMLFormElement>) {
   }
 }
 
+function formatEstimatedMyr(amount: number) {
+  return new Intl.NumberFormat("en-MY", {
+    style: "currency",
+    currency: "MYR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export function ExpensesClient({
   trip,
   tripId,
-  editable,
+  canAddExpense,
+  canManageExpenses,
   initialData,
 }: {
   trip: Trip;
   tripId: string;
-  editable: boolean;
+  canAddExpense: boolean;
+  canManageExpenses: boolean;
   initialData: TripExpenseData;
 }) {
   const expensesQuery = useTripExpenses(tripId, initialData);
   const { data } = expensesQuery;
   const byCurrency = useMemo(() => summarizeByCurrency(data.expenses), [data.expenses]);
+  const estimatedMyrTotal = useMemo(() => calculateEstimatedMyr(data.expenses), [data.expenses]);
   const categoryTotals = useMemo(() => summarizeByCategoryCurrency(data.expenses), [data.expenses]);
   const paidByTraveler = useMemo(() => data.travelers.map((traveler) => ({
     traveler,
@@ -66,7 +80,7 @@ export function ExpensesClient({
 
       <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="md:col-span-2">
-          <ExpenseTotalSummary totalsByCurrency={byCurrency} />
+          <ExpenseTotalSummary estimatedMyrTotal={estimatedMyrTotal} totalsByCurrency={byCurrency} />
         </div>
         <div className="md:col-span-2">
           <ExpenseCategoryChart categoryTotals={categoryTotals} />
@@ -87,7 +101,7 @@ export function ExpensesClient({
         </Card>
       </div>
 
-      {editable ? (
+      {canAddExpense ? (
         <div className="flex justify-end">
           <AddExpenseSheet
             tripId={tripId}
@@ -97,7 +111,7 @@ export function ExpensesClient({
         </div>
       ) : (
         <div className="rounded-[20px] border border-[var(--border)] bg-[var(--muted)] p-4 text-sm font-semibold text-[var(--muted-foreground)]">
-          Read-only access. Mutation controls are hidden for viewers.
+          Expense creation is unavailable for this trip.
         </div>
       )}
 
@@ -109,6 +123,7 @@ export function ExpensesClient({
               <div className="divide-y divide-[var(--border)] lg:hidden">
                 {data.expenses.map((expense) => {
                   const paidBy = data.travelers.find((traveler) => traveler.id === expense.paid_by_traveler_id)?.name ?? "Not set";
+                  const estimatedMyr = estimateAmountInMyr(expense.currency, Number(expense.total_amount));
                   return (
                     <article key={expense.id} className="min-w-0 p-4 sm:p-5">
                       <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -120,14 +135,21 @@ export function ExpensesClient({
                           </div>
                           {expense.notes ? <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">{expense.notes}</p> : null}
                         </div>
-                        <p className="font-bold sm:shrink-0 sm:text-right">{expense.currency}<br />{Number(expense.total_amount).toFixed(2)}</p>
+                        <div className="sm:shrink-0 sm:text-right">
+                          <p className="font-bold">{expense.currency}<br />{Number(expense.total_amount).toFixed(2)}</p>
+                          {estimatedMyr !== null ? (
+                            <p className="mt-1 text-xs font-semibold text-[var(--muted-foreground)]">
+                              est. {formatEstimatedMyr(estimatedMyr)}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <span className="text-xs text-[var(--muted-foreground)]">
                           {expense.expense_date ?? expense.created_at.slice(0, 10)}
                           {expense.expense_time ? ` - ${expense.expense_time.slice(0, 5)}` : ""}
                         </span>
-                        {editable ? (
+                        {canManageExpenses ? (
                           <form action={softDeleteExpense.bind(null, tripId, expense.id)} onSubmit={confirmDeleteExpense}>
                             <Button variant="ghost" type="submit" className="text-[var(--danger)]">
                               <Trash2 size={16} />
@@ -142,39 +164,46 @@ export function ExpensesClient({
               </div>
 
               <div className="hidden max-w-full overflow-x-auto lg:block">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[820px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)] text-xs uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
                       <th className="p-4">Expense</th>
                       <th className="p-4">Category</th>
                       <th className="p-4">Currency</th>
                       <th className="p-4">Amount</th>
+                      <th className="p-4">Est. MYR</th>
                       <th className="p-4">Paid by</th>
                       <th className="p-4">Created</th>
                       <th className="p-4">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.expenses.map((expense) => (
-                      <tr key={expense.id} className="border-b border-[var(--border)] last:border-b-0">
-                        <td className="p-4 font-semibold">{expense.expense_name}</td>
-                        <td className="p-4"><ExpenseCategoryBadge category={expense.category} /></td>
-                        <td className="p-4"><StatusBadge status={expense.currency} /></td>
-                        <td className="p-4 font-semibold">{Number(expense.total_amount).toFixed(2)}</td>
-                        <td className="p-4">{data.travelers.find((traveler) => traveler.id === expense.paid_by_traveler_id)?.name ?? "-"}</td>
-                        <td className="p-4">
-                          {expense.expense_date ?? expense.created_at.slice(0, 10)}
-                          {expense.expense_time ? ` ${expense.expense_time.slice(0, 5)}` : ""}
-                        </td>
-                        <td className="p-4">
-                          {editable ? (
-                            <form action={softDeleteExpense.bind(null, tripId, expense.id)} onSubmit={confirmDeleteExpense}>
-                              <Button variant="ghost" type="submit" className="text-[var(--danger)]"><Trash2 size={16} />Delete</Button>
-                            </form>
-                          ) : null}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.expenses.map((expense) => {
+                      const estimatedMyr = estimateAmountInMyr(expense.currency, Number(expense.total_amount));
+                      return (
+                        <tr key={expense.id} className="border-b border-[var(--border)] last:border-b-0">
+                          <td className="p-4 font-semibold">{expense.expense_name}</td>
+                          <td className="p-4"><ExpenseCategoryBadge category={expense.category} /></td>
+                          <td className="p-4"><StatusBadge status={expense.currency} /></td>
+                          <td className="p-4 font-semibold">{Number(expense.total_amount).toFixed(2)}</td>
+                          <td className="p-4 font-semibold">
+                            {estimatedMyr !== null ? formatEstimatedMyr(estimatedMyr) : "-"}
+                          </td>
+                          <td className="p-4">{data.travelers.find((traveler) => traveler.id === expense.paid_by_traveler_id)?.name ?? "-"}</td>
+                          <td className="p-4">
+                            {expense.expense_date ?? expense.created_at.slice(0, 10)}
+                            {expense.expense_time ? ` ${expense.expense_time.slice(0, 5)}` : ""}
+                          </td>
+                          <td className="p-4">
+                            {canManageExpenses ? (
+                              <form action={softDeleteExpense.bind(null, tripId, expense.id)} onSubmit={confirmDeleteExpense}>
+                                <Button variant="ghost" type="submit" className="text-[var(--danger)]"><Trash2 size={16} />Delete</Button>
+                              </form>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

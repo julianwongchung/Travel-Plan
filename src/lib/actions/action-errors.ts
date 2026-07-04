@@ -49,6 +49,14 @@ export function normalizeActionError(error: unknown) {
   }
 
   if (
+    code === "PGRST202"
+    || lowerMessage.includes("could not find the function")
+    || lowerMessage.includes("schema cache")
+  ) {
+    return "The database is missing the latest Supabase migrations. Apply the latest migrations and try again.";
+  }
+
+  if (
     code === "23505"
     || lowerMessage.includes("duplicate")
     || lowerMessage.includes("unique constraint")
@@ -63,6 +71,18 @@ export function normalizeActionError(error: unknown) {
     || lowerMessage.includes("check constraint")
     || lowerMessage.includes("invalid input")
   ) {
+    if (lowerMessage.includes("only admins can create trips")) {
+      return "Your account does not have admin permission to create trips.";
+    }
+
+    if (
+      lowerMessage.includes("currency")
+      || lowerMessage.includes("trips_currency_check")
+      || lowerMessage.includes("trip_expenses_currency_check")
+    ) {
+      return "This currency is not enabled in the database yet. Apply the latest Supabase migration and try again.";
+    }
+
     if (
       lowerMessage.includes("required")
       || lowerMessage.includes("must be")

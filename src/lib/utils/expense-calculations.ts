@@ -29,6 +29,33 @@ export function summarizeByCurrency<T extends { currency: string; total_amount: 
   }, {});
 }
 
+const estimatedMyrRates: Record<string, number> = {
+  MYR: 1,
+  SGD: 3.5,
+  USD: 4.7,
+  VND: 0.00018,
+  THB: 0.13,
+  IDR: 0.00029,
+  PHP: 0.08,
+  JPY: 0.031,
+  KRW: 0.0034,
+  TWD: 0.15,
+  HKD: 0.6,
+  CNY: 0.65,
+};
+
+export function estimateAmountInMyr(currency: string, amount: number) {
+  const rate = estimatedMyrRates[currency.trim().toUpperCase()];
+  return rate === undefined ? null : amount * rate;
+}
+
+export function calculateEstimatedMyr<T extends { currency: string; total_amount: number }>(expenses: T[]) {
+  return expenses.reduce((total, expense) => {
+    const estimated = estimateAmountInMyr(expense.currency, Number(expense.total_amount));
+    return estimated === null ? total : total + estimated;
+  }, 0);
+}
+
 function normalizedExpenseCategory(category: string | null | undefined) {
   const normalized = category?.trim().toLowerCase();
   return normalized === "food"

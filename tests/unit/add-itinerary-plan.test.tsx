@@ -110,10 +110,10 @@ describe("AddItineraryPlan", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Destination / To" }), {
       target: { value: "Kuala Lumpur" },
     });
-    fireEvent.change(screen.getByLabelText("Departure date & time"), { target: { value: "2026-11-20T18:00" } });
-    fireEvent.change(screen.getByLabelText("Arrival date & time"), { target: { value: "2026-11-20T20:00" } });
-    expect(screen.getByText("20/11/2026 18:00")).toBeTruthy();
-    expect(screen.getByText("20/11/2026 20:00")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Departure date & time"), { target: { value: "20/11/2026 18:00" } });
+    fireEvent.change(screen.getByLabelText("Arrival date & time"), { target: { value: "20/11/2026 20:00" } });
+    expect(screen.getByDisplayValue("20/11/2026 18:00")).toBeTruthy();
+    expect(screen.getByDisplayValue("20/11/2026 20:00")).toBeTruthy();
     fireEvent.change(screen.getByRole("textbox", { name: "Passenger" }), {
       target: { value: "Julian" },
     });
@@ -126,8 +126,8 @@ describe("AddItineraryPlan", () => {
 
     fireEvent.change(origins[1], { target: { value: "Kuala Lumpur" } });
     fireEvent.change(destinations[1], { target: { value: "Osaka" } });
-    fireEvent.change(departureDateTimes[1], { target: { value: "2026-11-20T22:40" } });
-    fireEvent.change(arrivalDateTimes[1], { target: { value: "2026-11-21T05:50" } });
+    fireEvent.change(departureDateTimes[1], { target: { value: "20/11/2026 22:40" } });
+    fireEvent.change(arrivalDateTimes[1], { target: { value: "21/11/2026 05:50" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Flight" }));
 
     await waitFor(() => expect(addScheduleItem).toHaveBeenCalledTimes(1));
@@ -137,10 +137,30 @@ describe("AddItineraryPlan", () => {
     expect(submitted.get("flight_segment_count")).toBe("2");
     expect(submitted.get("flight_segments.0.origin")).toBe("Kuching");
     expect(submitted.get("flight_segments.0.departure_at")).toBe("2026-11-20T18:00");
+    expect(submitted.get("flight_segments.0.departure_date")).toBe("2026-11-20");
+    expect(submitted.get("flight_segments.0.departure_time")).toBe("18:00");
     expect(submitted.get("flight_segments.1.destination")).toBe("Osaka");
+    expect(submitted.get("flight_segments.1.arrival_at")).toBe("2026-11-21T05:50");
     expect(submitted.get("flight_passenger_name")).toBe("Julian");
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
+  });
+
+  it("lets the calendar picker fill flight date-time fields", () => {
+    render(<AddItineraryPlan {...props} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Flight" }));
+
+    fireEvent.change(screen.getByLabelText("Departure date & time calendar"), {
+      target: { value: "2026-11-20T18:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Arrival date & time calendar"), {
+      target: { value: "2026-11-21T05:50" },
+    });
+
+    expect(screen.getByDisplayValue("20/11/2026 18:00")).toBeTruthy();
+    expect(screen.getByDisplayValue("21/11/2026 05:50")).toBeTruthy();
   });
 
   it("uses saved travelers as multi-select flight passengers", async () => {

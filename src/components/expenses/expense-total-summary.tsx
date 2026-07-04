@@ -3,6 +3,7 @@ import { GlassCard, GlassCardContent } from "@/components/ui/glass-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 type ExpenseTotalSummaryProps = {
+  estimatedMyrTotal: number;
   totalsByCurrency: Record<string, number>;
 };
 
@@ -17,7 +18,17 @@ function formatOriginalAmount(currency: string, amount: number) {
   }).format(amount);
 }
 
+function formatMyrAmount(amount: number) {
+  return new Intl.NumberFormat("en-MY", {
+    style: "currency",
+    currency: "MYR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export function ExpenseTotalSummary({
+  estimatedMyrTotal,
   totalsByCurrency,
 }: ExpenseTotalSummaryProps) {
   const originalTotals = Object.entries(totalsByCurrency).sort(([left], [right]) => left.localeCompare(right));
@@ -32,22 +43,38 @@ export function ExpenseTotalSummary({
             </span>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Total Expenses</p>
-              <h2 className="mt-1 text-lg font-bold tracking-[-0.02em]">Original currency totals</h2>
+              <h2 className="mt-1 text-lg font-bold tracking-[-0.02em]">Estimated in MYR</h2>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {originalTotals.length ? originalTotals.map(([currency, total]) => (
-              <div key={currency} className="flex min-h-12 items-center justify-between gap-4 rounded-[18px] bg-[var(--card-strong)] px-4">
-                <StatusBadge status={currency} />
-                <p className="text-right text-lg font-bold tracking-[-0.025em]">
-                  {formatOriginalAmount(currency, total)}
+          {originalTotals.length ? (
+            <>
+              <div className="mt-5 rounded-[20px] bg-[var(--card-strong)] p-4">
+                <p className="text-3xl font-black tracking-[-0.04em]">{formatMyrAmount(estimatedMyrTotal)}</p>
+                <p className="mt-1 text-xs font-semibold text-[var(--muted-foreground)]">
+                  Approximate default-currency total. Original currency amounts stay unchanged.
                 </p>
               </div>
-            )) : (
+
+              <div className="mt-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Original currency totals</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {originalTotals.map(([currency, total]) => (
+                    <div key={currency} className="flex min-h-12 items-center justify-between gap-4 rounded-[18px] bg-[var(--card-strong)] px-4">
+                      <StatusBadge status={currency} />
+                      <p className="text-right text-lg font-bold tracking-[-0.025em]">
+                        {formatOriginalAmount(currency, total)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-5">
               <p className="text-sm text-[var(--muted-foreground)]">No expenses yet.</p>
-            )}
-          </div>
+            </div>
+          )}
         </section>
       </GlassCardContent>
     </GlassCard>

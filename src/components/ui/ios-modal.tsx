@@ -27,6 +27,11 @@ export function IOSModal({
 }) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return undefined;
@@ -40,7 +45,7 @@ export function IOSModal({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -68,7 +73,7 @@ export function IOSModal({
       document.removeEventListener("keydown", handleKeyDown);
       if (previousActiveElement?.isConnected) previousActiveElement.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 

@@ -3,24 +3,25 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { ArchiveRestore, CalendarDays, CircleCheck, Ellipsis, EyeOff, FolderArchive, LockKeyhole, Search, SlidersHorizontal, Trash2, UserRound, Users, WalletCards, X } from "lucide-react";
 import { restoreArchivedTrip, restoreDeletedTrip, softDeleteTrip } from "@/lib/actions/trips";
+import type { AppRole } from "@/lib/db/types";
 import type { TripListItem } from "@/lib/db/queries";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { IOSListItem } from "@/components/ui/ios-list-item";
 import { StatusBadge as UIStatusBadge } from "@/components/ui/status-badge";
-import { RoleBadge } from "@/components/trip/role-badge";
 import { StatusBadge } from "@/components/trip/status-badge";
 import { CreateTripModal } from "@/components/trips/create-trip-modal";
 import { TripCardActions } from "@/components/trips/trip-card-actions";
 import { cn } from "@/lib/utils/cn";
 import { formatDisplayDate } from "@/lib/utils/date-format";
+import { isAppAdmin } from "@/lib/utils/permissions";
 
-type TripFilter = "all" | "private" | "shared";
+type TripFilter = "all" | "active" | "archived";
 
 const filters: Array<{ value: TripFilter; label: string }> = [
   { value: "all", label: "All Trips" },
-  { value: "private", label: "Private" },
-  { value: "shared", label: "Shared" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
 ];
 
 function travelerLabel(count: number) {
@@ -86,8 +87,9 @@ function VisualBadge({
   );
 }
 
-function VisualTripCard({ trip }: { trip: TripListItem }) {
-  const canDelete = trip.role === "owner" && trip.deleted_at === null;
+function VisualTripCard({ appRole, trip }: { appRole: AppRole; trip: TripListItem }) {
+  const admin = isAppAdmin(appRole);
+  const canDelete = admin && trip.deleted_at === null;
 
   return (
     <article className="overflow-hidden rounded-[22px] border border-[#d5deef] bg-white/82 shadow-[0_18px_45px_rgba(31,42,68,0.12)] backdrop-blur-xl dark:border-white/10 dark:bg-[var(--card)]">
@@ -139,7 +141,7 @@ function VisualTripCard({ trip }: { trip: TripListItem }) {
 
       <div className="grid gap-4 p-4 sm:p-5">
         <div className="flex flex-wrap gap-2">
-          <VisualBadge tone="blue"><UserRound size={13} /> Owner</VisualBadge>
+          <VisualBadge tone="blue"><UserRound size={13} /> Trip</VisualBadge>
           <VisualBadge tone="cyan"><CircleCheck size={13} /> {trip.trip_status[0].toUpperCase() + trip.trip_status.slice(1)}</VisualBadge>
           <VisualBadge><WalletCards size={13} /> {trip.default_currency}</VisualBadge>
           <VisualBadge><Users size={13} /> {travelerLabel(trip.traveler_count)}</VisualBadge>
@@ -147,17 +149,22 @@ function VisualTripCard({ trip }: { trip: TripListItem }) {
         </div>
 
         <div className="border-t border-[#e3e8f2] pt-4 dark:border-white/10">
-          <TripCardActions tripId={trip.id} memberCount={trip.member_count} tripStatus={trip.trip_status} />
+          {admin ? (
+            <TripCardActions tripId={trip.id} memberCount={trip.member_count} tripStatus={trip.trip_status} />
+          ) : (
+            <ButtonLink className="w-full min-h-12 text-sm" href={`/trips/${trip.id}/overview`}>Open</ButtonLink>
+          )}
         </div>
       </div>
     </article>
   );
 }
 
-function TripCard({ trip }: { trip: TripListItem }) {
+function TripCard({ appRole, trip }: { appRole: AppRole; trip: TripListItem }) {
+  const admin = isAppAdmin(appRole);
   const archived = trip.trip_status === "archived" && trip.deleted_at === null;
   const deleted = trip.deleted_at !== null;
-  const canDelete = trip.role === "owner" && !deleted;
+  const canDelete = admin && !deleted;
 
   return (
     <Card className="relative overflow-hidden rounded-[18px] border border-[#d8e0f1] bg-white/82 shadow-[0_10px_30px_rgba(31,42,68,0.08)] dark:border-white/10 dark:bg-[var(--card)]">
@@ -188,28 +195,28 @@ function TripCard({ trip }: { trip: TripListItem }) {
             {dateRangeLabel(trip)}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <RoleBadge role={trip.role} className="min-h-5 px-1.5 py-0 text-[10px] leading-4" />
+            <UIStatusBadge status={admin ? "Admin" : "Viewer"} tone={admin ? "primary" : "neutral"} className="min-h-5 px-1.5 py-0 text-[10px] leading-4" />
             <StatusBadge status={trip.trip_status} className="min-h-5 px-1.5 py-0 text-[10px] leading-4" />
             <UIStatusBadge status={travelerLabel(trip.traveler_count)} className="min-h-5 px-1.5 py-0 text-[10px] leading-4" />
           </div>
         </div>
 
         <div className="mt-4 border-t border-[#e5eaf5] pt-3 dark:border-white/10">
-          {deleted ? (
+          {deleted && admin ? (
             <form action={restoreDeletedTrip.bind(null, trip.id)}>
               <Button className="w-full min-h-9 text-xs" variant="secondary" type="submit">
                 <ArchiveRestore size={15} />
                 Restore
               </Button>
             </form>
-          ) : archived ? (
+          ) : archived && admin ? (
             <form action={restoreArchivedTrip.bind(null, trip.id)}>
               <Button className="w-full min-h-9 text-xs" variant="secondary" type="submit">
                 <ArchiveRestore size={15} />
                 Restore
               </Button>
             </form>
-          ) : trip.role === "owner" ? (
+          ) : admin ? (
             <TripCardActions tripId={trip.id} memberCount={trip.member_count} tripStatus={trip.trip_status} />
           ) : (
             <ButtonLink className="w-full min-h-9 text-xs" href={`/trips/${trip.id}/overview`}>Open</ButtonLink>
@@ -225,12 +232,14 @@ function TripSection({
   icon,
   trips,
   empty,
+  appRole,
   showcase = false,
 }: {
   title: string;
   icon: ReactNode;
   trips: TripListItem[];
   empty: string;
+  appRole: AppRole;
   showcase?: boolean;
 }) {
   return (
@@ -242,7 +251,7 @@ function TripSection({
       {trips.length ? (
         <div className={cn("grid gap-4", showcase && "sm:grid-cols-2 xl:grid-cols-2")}>
           {trips.map((trip) => (
-            showcase ? <VisualTripCard key={trip.id} trip={trip} /> : <TripCard key={trip.id} trip={trip} />
+            showcase ? <VisualTripCard key={trip.id} appRole={appRole} trip={trip} /> : <TripCard key={trip.id} appRole={appRole} trip={trip} />
           ))}
         </div>
       ) : (
@@ -256,22 +265,22 @@ function TripSection({
   );
 }
 
-export function TripsDashboard({ trips }: { trips: TripListItem[] }) {
+export function TripsDashboard({ appRole, trips }: { appRole: AppRole; trips: TripListItem[] }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<TripFilter>("all");
   const [showTrash, setShowTrash] = useState(false);
+  const admin = isAppAdmin(appRole);
 
   const filteredTrips = useMemo(() => trips.filter((trip) => {
     if (!matchesSearch(trip, search)) return false;
-    if (filter === "private") return trip.role === "owner";
-    if (filter === "shared") return trip.role !== "owner";
+    if (filter === "active") return trip.deleted_at === null && trip.trip_status !== "archived";
+    if (filter === "archived") return trip.deleted_at === null && trip.trip_status === "archived";
     return true;
   }), [filter, search, trips]);
 
-  const activeOwned = filteredTrips.filter((trip) => trip.role === "owner" && trip.deleted_at === null && trip.trip_status !== "archived");
-  const shared = filteredTrips.filter((trip) => trip.role !== "owner" && trip.deleted_at === null && trip.trip_status !== "archived");
-  const archived = filteredTrips.filter((trip) => trip.role === "owner" && trip.deleted_at === null && trip.trip_status === "archived");
-  const trash = filteredTrips.filter((trip) => trip.role === "owner" && trip.deleted_at !== null);
+  const activeTrips = filteredTrips.filter((trip) => trip.deleted_at === null && trip.trip_status !== "archived");
+  const archived = filteredTrips.filter((trip) => trip.deleted_at === null && trip.trip_status === "archived");
+  const trash = filteredTrips.filter((trip) => trip.deleted_at !== null);
 
   return (
     <div className="mx-auto grid w-full max-w-5xl min-w-0 gap-5">
@@ -320,21 +329,20 @@ export function TripsDashboard({ trips }: { trips: TripListItem[] }) {
         </div>
       </div>
 
-      {filter !== "shared" ? (
-        <TripSection title="My Private Trips" icon={<LockKeyhole size={20} />} trips={activeOwned} empty="Create your first private trip." showcase />
+      {filter !== "archived" ? (
+        <TripSection title="Trips" icon={<LockKeyhole size={20} />} trips={activeTrips} empty={admin ? "Create your first trip." : "No trips available yet."} appRole={appRole} showcase />
       ) : null}
-      {filter !== "private" ? (
-        <TripSection title="Shared With Me" icon={<Users size={18} />} trips={shared} empty="No shared trips yet." />
+      {admin ? (
+        <div className="flex min-w-0 justify-start">
+          <CreateTripModal />
+        </div>
       ) : null}
-      <div className="flex min-w-0 justify-start">
-        <CreateTripModal />
-      </div>
-      {filter !== "shared" ? (
-        <TripSection title="Archived" icon={<FolderArchive size={18} />} trips={archived} empty="No archived trips." />
+      {filter !== "active" ? (
+        <TripSection title="Archived" icon={<FolderArchive size={18} />} trips={archived} empty="No archived trips." appRole={appRole} />
       ) : null}
-      {showTrash && filter !== "shared" ? (
+      {showTrash && admin ? (
         <>
-          <TripSection title="Trash" icon={<Trash2 size={18} />} trips={trash} empty="Trash is empty." />
+          <TripSection title="Trash" icon={<Trash2 size={18} />} trips={trash} empty="Trash is empty." appRole={appRole} />
         </>
       ) : null}
     </div>

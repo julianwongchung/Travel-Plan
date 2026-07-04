@@ -144,7 +144,7 @@ describe("TripPlanDayTabs", () => {
     expect(screen.queryByRole("button", { name: "Move Airport transfer up" })).toBeNull();
   });
 
-  it("keeps itinerary editing controls on Trip Plan for editors and owners", () => {
+  it("keeps itinerary editing controls on Trip Plan when editable", () => {
     render(
       <TripPlanDayTabs
         tripId="trip-1"
@@ -192,7 +192,7 @@ describe("TripPlanDayTabs", () => {
     expect(screen.getByText("Museum visit")).toBeTruthy();
   });
 
-  it("shows overnight flight details on the arrival day without moving the owned item", () => {
+  it("shows overnight flights in the arrival day draggable schedule", () => {
     render(
       <TripPlanDayTabs
         tripId="trip-1"
@@ -228,10 +228,13 @@ describe("TripPlanDayTabs", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "14 JUN D2" }));
 
-    expect(screen.getByText("Flight details for this day")).toBeTruthy();
+    expect(screen.queryByText("Flight details for this day")).toBeNull();
     expect(screen.getByText("Kuala Lumpur \u2192 Osaka")).toBeTruthy();
     expect(screen.getByText("1. Kuala Lumpur to Osaka / 13/06/2026 22:40 to 14/06/2026 05:50 (+1 day)")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Edit Kuala Lumpur \u2192 Osaka" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reorder Kuala Lumpur \u2192 Osaka" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Kuala Lumpur \u2192 Osaka" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Remove Kuala Lumpur \u2192 Osaka" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Move Kuala Lumpur \u2192 Osaka up" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Move Kuala Lumpur \u2192 Osaka down" })).toBeTruthy();
   });
 });

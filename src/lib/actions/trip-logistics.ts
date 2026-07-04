@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { throwSafeActionError } from "@/lib/actions/action-errors";
-import { authedClient, value } from "@/lib/actions/helpers";
+import { authedAdminClient, value } from "@/lib/actions/helpers";
 import { flightInputSchema, hotelInputSchema } from "@/lib/utils/trip-logistics";
 
 export async function createTripHotel(tripId: string, formData: FormData) {
@@ -13,7 +13,7 @@ export async function createTripHotel(tripId: string, formData: FormData) {
     checkOutDate: value(formData, "check_out_date"),
     notes: value(formData, "notes"),
   });
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("create_trip_hotel", {
     p_trip_id: tripId,
     p_name: input.name,
@@ -37,7 +37,7 @@ export async function createTripFlight(tripId: string, formData: FormData) {
     arrival: value(formData, "arrival"),
     notes: value(formData, "notes"),
   });
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("create_trip_flight", {
     p_trip_id: tripId,
     p_flight_number: input.flightNumber,
@@ -54,7 +54,7 @@ export async function createTripFlight(tripId: string, formData: FormData) {
 }
 
 export async function softDeleteTripHotel(tripId: string, hotelId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("soft_delete_trip_hotel", { p_hotel_id: hotelId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
@@ -62,7 +62,7 @@ export async function softDeleteTripHotel(tripId: string, hotelId: string) {
 }
 
 export async function softDeleteTripFlight(tripId: string, flightId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("soft_delete_trip_flight", { p_flight_id: flightId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);

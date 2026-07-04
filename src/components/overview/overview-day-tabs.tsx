@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   Bed,
   BusFront,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { TripDaySelector } from "@/components/trip/trip-day-selector";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
+import type { Traveler } from "@/lib/db/types";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils/date-format";
 import {
   flightArrivalDayOffset,
@@ -24,6 +25,7 @@ import {
   type FlightPlanSegment,
   type ScheduleItemCategory,
 } from "@/lib/utils/schedule-item-plan";
+import { passengerColors, type PassengerColor } from "@/lib/utils/traveler-colors";
 
 type OverviewDay = {
   id: string;
@@ -42,6 +44,18 @@ type OverviewScheduleItem = {
   transport: string | null;
   food: string | null;
   notes: string | null;
+};
+
+type OverviewTimelineStop = {
+  kind: string;
+  place: string;
+  date: string;
+  time: string;
+  key: string;
+};
+
+type TravelerColorVars = CSSProperties & {
+  "--traveler-accent"?: string;
 };
 
 const categoryStyles = {
@@ -119,6 +133,52 @@ function displayStructuredValue(value: string) {
     : value;
 }
 
+function descriptionParts(description: string | null | undefined) {
+  return description
+    ?.split(" - ")
+    .map((part) => part.trim())
+    .filter(Boolean) ?? [];
+}
+
+function descriptionValue(description: string | null | undefined, label: string) {
+  const prefix = `${label}:`.toLowerCase();
+  return descriptionParts(description)
+    .find((part) => part.toLowerCase().startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim() || null;
+}
+
+function passengerNamesFromText(value: string | null) {
+  return value
+    ?.split(/[,/]/)
+    .map((name) => name.trim())
+    .filter(Boolean) ?? [];
+}
+
+function dateTimeParts(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const iso = /^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2}))?/.exec(trimmed);
+  if (iso) {
+    return {
+      date: iso[1],
+      time: iso[2] ?? null,
+    };
+  }
+
+  const display = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}))?/.exec(trimmed);
+  if (display) {
+    return {
+      date: `${display[3]}-${display[2]}-${display[1]}`,
+      time: display[4] ?? null,
+    };
+  }
+
+  const timeOnly = /^(\d{2}:\d{2})/.exec(trimmed);
+  return timeOnly ? { date: null, time: timeOnly[1] } : null;
+}
+
 function itemDetails(item: OverviewScheduleItem, category: ScheduleItemCategory) {
   const fields: Array<{ label: string; value: string }> = [];
   const noteParts: string[] = [];
@@ -187,11 +247,23 @@ function itemDetails(item: OverviewScheduleItem, category: ScheduleItemCategory)
   };
 }
 
-function itemAppearsOnDay(item: OverviewScheduleItem, day: OverviewDay) {
-  if (item.trip_day_id === day.id) return true;
-
+function passengerNamesForItem(item: OverviewScheduleItem) {
   const flightPlan = parseFlightPlanDescription(item.description);
-  return flightPlan ? flightPlanTouchesDate(flightPlan, day.date) : false;
+  if (flightPlan) return flightPlan.passengers;
+
+  if (scheduleItemCategory(item) !== "flight") return [];
+  return passengerNamesFromText(descriptionValue(item.description, "Passenger"));
+}
+
+function itemAppearsOnDay(item: OverviewScheduleItem, day: OverviewDay) {
+  const flightPlan = parseFlightPlanDescription(item.description);
+  if (flightPlan) return flightPlanTouchesDate(flightPlan, day.date);
+
+  const category = scheduleItemCategory(item);
+  const hotelStops = category === "lodging" ? hotelTimelineStops(item) : [];
+  if (hotelStops.length) return hotelStops.some((stop) => stop.date === day.date);
+
+  return item.trip_day_id === day.id;
 }
 
 function itemTimeForDay(item: OverviewScheduleItem, day: OverviewDay) {
@@ -199,7 +271,7 @@ function itemTimeForDay(item: OverviewScheduleItem, day: OverviewDay) {
   return flightPlan ? flightPlanTimeForDate(flightPlan, day.date) ?? item.time_block : item.time_block;
 }
 
-function flightTimelineStops(segments: FlightPlanSegment[]) {
+function flightTimelineStops(segments: FlightPlanSegment[], selectedDate: string): OverviewTimelineStop[] {
   return segments.flatMap((segment, segmentIndex) => ([
     {
       kind: "Departure",
@@ -217,7 +289,35 @@ function flightTimelineStops(segments: FlightPlanSegment[]) {
       offset: flightArrivalDayOffset(segment),
       key: `${segmentIndex}-arrival-${segment.destination}-${segment.arrivalTime}`,
     },
-  ]));
+  ])).filter((stop) => stop.date === selectedDate);
+}
+
+function hotelTimelineStops(item: OverviewScheduleItem): OverviewTimelineStop[] {
+  const checkIn = dateTimeParts(descriptionValue(item.description, "Check-in") ?? item.time_block);
+  const checkOut = dateTimeParts(descriptionValue(item.description, "Check-out"));
+  const stops: OverviewTimelineStop[] = [];
+
+  if (checkIn?.date && checkIn.time) {
+    stops.push({
+      kind: "Check-in",
+      place: item.title,
+      date: checkIn.date,
+      time: checkIn.time,
+      key: `${item.id}-check-in-${checkIn.date}-${checkIn.time}`,
+    });
+  }
+
+  if (checkOut?.date && checkOut.time) {
+    stops.push({
+      kind: "Check-out",
+      place: item.title,
+      date: checkOut.date,
+      time: checkOut.time,
+      key: `${item.id}-check-out-${checkOut.date}-${checkOut.time}`,
+    });
+  }
+
+  return stops;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -231,12 +331,29 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TravelerChip({ passenger }: { passenger: PassengerColor }) {
+  return (
+    <span
+      className="inline-flex min-h-6 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
+      style={{
+        backgroundColor: passenger.color.soft,
+        borderColor: passenger.color.border,
+        color: passenger.color.text,
+      }}
+    >
+      {passenger.name}
+    </span>
+  );
+}
+
 export function OverviewDayTabs({
   days,
   scheduleItems,
+  travelers = [],
 }: {
   days: OverviewDay[];
   scheduleItems: OverviewScheduleItem[];
+  travelers?: Pick<Traveler, "id" | "name" | "created_at">[];
 }) {
   const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -294,15 +411,40 @@ export function OverviewDayTabs({
                 const Icon = kind.icon;
                 const displayTime = itemTimeForDay(item, selectedDay);
                 const flightPlan = parseFlightPlanDescription(item.description);
-                const flightStops = flightPlan ? flightTimelineStops(flightPlan.segments) : [];
+                const itemPassengers = passengerColors(passengerNamesForItem(item), travelers);
+                const singlePassenger = itemPassengers.length === 1 ? itemPassengers[0] : null;
+                const flightAccentStyle: TravelerColorVars | undefined = singlePassenger
+                  ? { "--traveler-accent": singlePassenger.color.accent }
+                  : undefined;
+                const flightStops = flightPlan ? flightTimelineStops(flightPlan.segments, selectedDay.date) : [];
+                const hotelStops = !flightPlan && category === "lodging"
+                  ? hotelTimelineStops(item).filter((stop) => stop.date === selectedDay.date)
+                  : [];
+                const timelineStops = flightStops.length ? flightStops : hotelStops;
+                const timelineStopClass = category === "lodging"
+                  ? "border-violet-100 bg-violet-50/70 dark:border-violet-400/15 dark:bg-violet-400/10"
+                  : "border-blue-100 bg-blue-50/70 dark:border-blue-400/15 dark:bg-blue-400/10";
+                const timelineStopLabelClass = category === "lodging"
+                  ? "text-violet-600 dark:text-violet-300"
+                  : "text-blue-600 dark:text-blue-300";
+                const dynamicTimelineStopStyle = singlePassenger && category === "flight"
+                  ? {
+                      backgroundColor: singlePassenger.color.soft,
+                      borderColor: singlePassenger.color.border,
+                    }
+                  : undefined;
 
                 return (
                   <div key={item.id} className="relative min-w-0">
                     <span
                       data-overview-timeline-dot
                       className="absolute -left-[31px] top-4 z-10 grid size-6 place-items-center rounded-full bg-blue-500/10"
+                      style={singlePassenger ? { backgroundColor: singlePassenger.color.soft } : undefined}
                     >
-                      <span className="size-3 rounded-full bg-[var(--primary)] ring-4 ring-white dark:ring-slate-950" />
+                      <span
+                        className="size-3 rounded-full bg-[var(--primary)] ring-4 ring-white dark:ring-slate-950"
+                        style={singlePassenger ? { backgroundColor: singlePassenger.color.accent } : undefined}
+                      />
                     </span>
                     <button
                       type="button"
@@ -310,49 +452,82 @@ export function OverviewDayTabs({
                       data-itinerary-category={category}
                       onClick={() => setSelectedItemId(item.id)}
                       className="ios-pressable w-full min-w-0 rounded-[18px] border border-slate-100 bg-white/90 p-3 text-left shadow-sm transition dark:border-white/10 dark:bg-[var(--card-strong)] sm:p-4"
+                      style={{
+                        ...(category === "flight" ? flightAccentStyle : undefined),
+                        ...(singlePassenger && category === "flight"
+                          ? {
+                              borderColor: singlePassenger.color.border,
+                              boxShadow: `inset 4px 0 0 ${singlePassenger.color.accent}, 0 10px 26px rgba(15, 23, 42, 0.06)`,
+                            }
+                          : undefined),
+                      }}
                     >
                       <span className="flex min-w-0 items-start gap-3">
-                        <span className={`grid size-9 shrink-0 place-items-center rounded-[13px] ${kind.iconClass}`}>
+                        <span
+                          className={`grid size-9 shrink-0 place-items-center rounded-[13px] ${kind.iconClass}`}
+                          style={singlePassenger && category === "flight"
+                            ? {
+                                backgroundColor: singlePassenger.color.soft,
+                                color: singlePassenger.color.accent,
+                              }
+                            : undefined}
+                        >
                           <Icon size={17} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block break-words text-sm font-bold text-[var(--foreground)] sm:text-base">
                             {item.title}
                           </span>
-                          {displayTime && !flightStops.length ? (
+                          {itemPassengers.length ? (
+                            <span className="mt-1.5 flex flex-wrap gap-1.5">
+                              {itemPassengers.map((passenger) => (
+                                <TravelerChip key={`${item.id}-${passenger.name}`} passenger={passenger} />
+                              ))}
+                            </span>
+                          ) : null}
+                          {displayTime && !timelineStops.length ? (
                             <span className="mt-0.5 block text-xs font-medium tabular-nums text-[var(--muted-foreground)]">
-                              {displayTime}
+                              {dateTimeParts(displayTime)?.time ?? displayTime}
                             </span>
                           ) : null}
                         </span>
-                        {displayTime && !flightStops.length ? (
+                        {displayTime && !timelineStops.length ? (
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-[var(--muted-foreground)]">
-                            {displayTime}
+                            {dateTimeParts(displayTime)?.time ?? displayTime}
                           </span>
                         ) : null}
                       </span>
 
-                      {flightStops.length ? (
+                      {timelineStops.length ? (
                         <span className="mt-3 grid gap-2">
-                          {flightStops.map((stop) => (
+                          {timelineStops.map((stop) => (
                             <span
                               key={stop.key}
-                              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border border-blue-100 bg-blue-50/70 px-3 py-2 dark:border-blue-400/15 dark:bg-blue-400/10"
+                              className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] border px-3 py-2 ${timelineStopClass}`}
+                              style={dynamicTimelineStopStyle}
                             >
                               <span className="min-w-0">
-                                <span className="block truncate text-sm font-bold text-[var(--foreground)]">
-                                  {stop.place}
-                                </span>
-                                <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600 dark:text-blue-300">
-                                  {stop.kind}
-                                </span>
+                                {category === "lodging" ? (
+                                  <span className={`block text-[11px] font-semibold uppercase tracking-[0.12em] ${timelineStopLabelClass}`}>
+                                    {stop.kind}
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className="block truncate text-sm font-bold text-[var(--foreground)]">
+                                      {stop.place}
+                                    </span>
+                                    <span
+                                      className={`mt-0.5 block text-[11px] font-semibold uppercase tracking-[0.12em] ${timelineStopLabelClass}`}
+                                      style={singlePassenger && category === "flight" ? { color: singlePassenger.color.text } : undefined}
+                                    >
+                                      {stop.kind}
+                                    </span>
+                                  </>
+                                )}
                               </span>
                               <span className="text-right">
                                 <span className="block text-base font-extrabold tabular-nums text-[var(--foreground)]">
                                   {stop.time}
-                                </span>
-                                <span className="mt-0.5 block text-[11px] font-medium text-[var(--muted-foreground)]">
-                                  {shortDate(stop.date)}{stop.offset ? ` (${stop.offset})` : ""}
                                 </span>
                               </span>
                             </span>
@@ -389,7 +564,20 @@ export function OverviewDayTabs({
         {selectedItem && selectedDay && selectedKind && selectedDetails ? (
           <div className="grid gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <span className={`grid size-11 shrink-0 place-items-center rounded-[15px] ${selectedKind.iconClass}`}>
+              {(() => {
+                const modalPassengers = passengerColors(passengerNamesForItem(selectedItem), travelers);
+                const singlePassenger = modalPassengers.length === 1 ? modalPassengers[0] : null;
+                return (
+                  <>
+              <span
+                className={`grid size-11 shrink-0 place-items-center rounded-[15px] ${selectedKind.iconClass}`}
+                style={singlePassenger && selectedCategory === "flight"
+                  ? {
+                      backgroundColor: singlePassenger.color.soft,
+                      color: singlePassenger.color.accent,
+                    }
+                  : undefined}
+              >
                 <selectedKind.icon size={19} />
               </span>
               <div className="min-w-0">
@@ -397,7 +585,17 @@ export function OverviewDayTabs({
                 <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
                   Day {selectedDay.day_number ?? selectedDayIndex + 1} / {dayDate(selectedDay.date)}
                 </p>
+                {modalPassengers.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {modalPassengers.map((passenger) => (
+                      <TravelerChip key={`modal-${passenger.name}`} passenger={passenger} />
+                    ))}
+                  </div>
+                ) : null}
               </div>
+                  </>
+                );
+              })()}
             </div>
 
             <dl className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--card-strong)]">

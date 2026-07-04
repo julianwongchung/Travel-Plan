@@ -61,6 +61,7 @@ export function TripPlanDayTabs({
     ? scheduleItems.filter((item) => item.trip_day_id !== selectedDay.id && flightTouchesDay(item, selectedDay))
     : [];
   const selectedItems = [...ownedItems, ...relatedFlightItems];
+  const relatedFlightItemIds = relatedFlightItems.map((item) => item.id);
 
   function selectDay(dayId: string) {
     setSelectedDayId(dayId);
@@ -104,30 +105,18 @@ export function TripPlanDayTabs({
                     {selectedDay.hotel_link ? <a className="font-semibold text-[var(--primary)]" href={selectedDay.hotel_link}>{selectedDay.hotel_name}</a> : selectedDay.hotel_name}
                   </p>
                 ) : null}
-                {ownedItems.length ? (
+                {selectedItems.length ? (
                   <ReorderableScheduleList
-                    key={`${selectedDay.id}:${ownedItems.map((item) => `${item.id}:${item.sort_order}`).join(",")}`}
+                    key={`${selectedDay.id}:${selectedItems.map((item) => `${item.id}:${item.trip_day_id}:${item.sort_order}`).join(",")}`}
                     tripId={tripId}
                     tripDayId={selectedDay.id}
-                    items={ownedItems}
+                    targetDayDate={selectedDay.date}
+                    targetDayNumber={selectedDay.day_number ?? selectedDayIndex + 1}
+                    items={selectedItems}
                     editable={editable}
+                    removeDisabledItemIds={relatedFlightItemIds}
                     travelers={travelers}
                   />
-                ) : null}
-                {relatedFlightItems.length ? (
-                  <div className="grid gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                      Flight details for this day
-                    </p>
-                    <ReorderableScheduleList
-                      key={`${selectedDay.id}:related-flights:${relatedFlightItems.map((item) => item.id).join(",")}`}
-                      tripId={tripId}
-                      tripDayId={selectedDay.id}
-                      items={relatedFlightItems}
-                      editable={false}
-                      travelers={travelers}
-                    />
-                  </div>
                 ) : null}
               </div>
 

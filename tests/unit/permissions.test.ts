@@ -1,26 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { canEdit, canEditTrip, canManageTrip, canTransitionTrip } from "@/lib/utils/permissions";
+import { canAccessAdmin, canAccessExpenses, canAccessOverview, canAccessPlaces, canAccessTripPlan, canAddExpense, canEdit, canEditTrip, canManageTrip, canTransitionTrip, isAppAdmin } from "@/lib/utils/permissions";
 
 describe("permission helpers", () => {
-  it("allows owners and editors to edit, but not viewers", () => {
-    expect(canEdit("owner")).toBe(true);
-    expect(canEdit("editor")).toBe(true);
+  it("uses only Admin and Viewer account permissions", () => {
+    expect(isAppAdmin("admin")).toBe(true);
+    expect(isAppAdmin("viewer")).toBe(false);
+    expect(canEdit("admin")).toBe(true);
     expect(canEdit("viewer")).toBe(false);
-  });
-
-  it("allows trip editing only for active, non-deleted owner/editor trips", () => {
-    expect(canEditTrip("owner", { deleted_at: null, trip_status: "planning" })).toBe(true);
-    expect(canEditTrip("editor", { deleted_at: null, trip_status: "active" })).toBe(true);
-    expect(canEditTrip("viewer", { deleted_at: null, trip_status: "planning" })).toBe(false);
-    expect(canEditTrip("owner", { deleted_at: "2026-06-20T00:00:00Z", trip_status: "planning" })).toBe(false);
-    expect(canEditTrip("editor", { deleted_at: null, trip_status: "completed" })).toBe(false);
-    expect(canEditTrip("owner", { deleted_at: null, trip_status: "archived" })).toBe(false);
-  });
-
-  it("restricts trip management to owners", () => {
-    expect(canManageTrip("owner")).toBe(true);
-    expect(canManageTrip("editor")).toBe(false);
+    expect(canManageTrip("admin")).toBe(true);
     expect(canManageTrip("viewer")).toBe(false);
+  });
+
+  it("allows Admin to edit non-deleted trips and blocks Viewer trip edits", () => {
+    expect(canEditTrip({ deleted_at: null, trip_status: "planning" }, "admin")).toBe(true);
+    expect(canEditTrip({ deleted_at: null, trip_status: "active" }, "admin")).toBe(true);
+    expect(canEditTrip({ deleted_at: null, trip_status: "completed" }, "admin")).toBe(true);
+    expect(canEditTrip({ deleted_at: null, trip_status: "archived" }, "admin")).toBe(true);
+    expect(canEditTrip({ deleted_at: null, trip_status: "planning" }, "viewer")).toBe(false);
+    expect(canEditTrip({ deleted_at: "2026-06-20T00:00:00Z", trip_status: "planning" }, "admin")).toBe(false);
+  });
+
+  it("lets Viewer read trip pages and add expenses only", () => {
+    expect(canAccessTripPlan("admin")).toBe(true);
+    expect(canAccessPlaces("admin")).toBe(true);
+    expect(canAccessAdmin("admin")).toBe(true);
+    expect(canAddExpense("admin")).toBe(true);
+    expect(canAccessOverview("viewer")).toBe(true);
+    expect(canAccessExpenses("viewer")).toBe(true);
+    expect(canAccessTripPlan("viewer")).toBe(true);
+    expect(canAccessPlaces("viewer")).toBe(true);
+    expect(canAddExpense("viewer")).toBe(true);
+    expect(canEdit("viewer")).toBe(false);
+    expect(canManageTrip("viewer")).toBe(false);
+    expect(canAccessAdmin("viewer")).toBe(false);
   });
 
   it("allows V1 lifecycle transitions", () => {

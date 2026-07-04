@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScheduleItem } from "@/lib/db/types";
 import { serializeFlightPlan } from "@/lib/utils/schedule-item-plan";
 
-const { closestCenter, dndHarness, invalidateQueries, pointerWithin, refresh, reorderScheduleItems, updateFlightScheduleItem, updateScheduleItemPlan } = vi.hoisted(() => ({
+const { closestCenter, dndHarness, invalidateQueries, pointerWithin, refresh, removeScheduleItem, reorderScheduleItems, updateFlightScheduleItem, updateScheduleItemPlan } = vi.hoisted(() => ({
   closestCenter: vi.fn(),
   dndHarness: {
     collisionDetection: null as null | ((args: unknown) => unknown),
@@ -28,13 +28,14 @@ const { closestCenter, dndHarness, invalidateQueries, pointerWithin, refresh, re
   invalidateQueries: vi.fn(),
   pointerWithin: vi.fn(),
   refresh: vi.fn(),
+  removeScheduleItem: vi.fn(),
   reorderScheduleItems: vi.fn(),
   updateFlightScheduleItem: vi.fn(),
   updateScheduleItemPlan: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/trips", () => ({
-  removeScheduleItem: vi.fn(),
+  removeScheduleItem,
   reorderScheduleItems,
   updateFlightScheduleItem,
   updateScheduleItemPlan,
@@ -174,6 +175,8 @@ describe("ReorderableScheduleList", () => {
     invalidateQueries.mockReset();
     pointerWithin.mockReset();
     refresh.mockReset();
+    removeScheduleItem.mockReset();
+    removeScheduleItem.mockResolvedValue(undefined);
     reorderScheduleItems.mockReset();
     reorderScheduleItems.mockResolvedValue(undefined);
     updateFlightScheduleItem.mockReset();
@@ -243,6 +246,36 @@ describe("ReorderableScheduleList", () => {
     });
   });
 
+  it("passes selected day metadata when reordering a generated day list", async () => {
+    render(
+      <ReorderableScheduleList
+        tripId="trip-1"
+        tripDayId="generated-trip-day:2026-11-21"
+        targetDayDate="2026-11-21"
+        targetDayNumber={2}
+        items={items}
+        editable
+      />,
+    );
+
+    act(() => {
+      dndHarness.onDragEnd?.({
+        active: { id: "item-1" },
+        over: { id: "item-2" },
+      });
+    });
+
+    await waitFor(() => {
+      expect(reorderScheduleItems).toHaveBeenCalledWith(
+        "trip-1",
+        "generated-trip-day:2026-11-21",
+        ["item-2", "item-1", "item-3"],
+        "2026-11-21",
+        2,
+      );
+    });
+  });
+
   it("uses dedicated touch-safe drag handles and keeps existing actions", () => {
     const { container } = renderList();
 
@@ -261,6 +294,25 @@ describe("ReorderableScheduleList", () => {
     expect((screen.getByRole("button", { name: "Move Hotel up" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Move Museum down" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole("list", { name: "Itinerary stops" }).className).not.toContain("pb-24");
+  });
+
+  it("removes a stop with a handled client action and refreshes trip queries", async () => {
+    renderList();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Hotel" }));
+
+    await waitFor(() => expect(removeScheduleItem).toHaveBeenCalledWith("trip-1", "item-1"));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "schedule"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["trips", "trip-1", "overview"] });
+  });
+
+  it("shows delete permission errors inline instead of throwing into the runtime overlay", async () => {
+    removeScheduleItem.mockRejectedValue(new Error("You do not have permission to do this."));
+    renderList();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Hotel" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("You do not have permission to do this.");
   });
 
   it("leaves touch events to TouchSensor and uses pointer-position collisions", () => {
@@ -367,11 +419,17 @@ describe("ReorderableScheduleList", () => {
         tripId="trip-1"
         tripDayId="day-1"
         items={[flightItem]}
+        travelers={[
+          { id: "traveler-1", name: "Julian", created_at: "2026-01-01T00:00:01Z" },
+          { id: "traveler-2", name: "Clarrie", created_at: "2026-01-01T00:00:02Z" },
+        ]}
         editable
       />,
     );
 
     expect(screen.getByText("Kuching \u2192 Kuala Lumpur \u2192 Osaka")).toBeTruthy();
+    expect(screen.getByText("Julian")).toBeTruthy();
+    expect(screen.getByText("Clarrie")).toBeTruthy();
     expect(screen.getByText("1 stop in Kuala Lumpur - Passengers: Julian, Clarrie")).toBeTruthy();
     expect(screen.getByText("1. Kuching to Kuala Lumpur / 20/11/2026 18:00 to 20/11/2026 20:00")).toBeTruthy();
     expect(screen.getByText("2. Kuala Lumpur to Osaka / 20/11/2026 22:40 to 21/11/2026 05:50 (+1 day)")).toBeTruthy();

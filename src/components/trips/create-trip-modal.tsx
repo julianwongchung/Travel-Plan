@@ -157,12 +157,17 @@ export function CreateTripModal() {
       setServerError(null);
       startTransition(async () => {
         try {
-          const tripId = await createTripFromModal(formData);
+          const result = await createTripFromModal(formData);
+          if (!result.ok) {
+            setServerError(result.error);
+            return;
+          }
+
           setOpen(false);
           window.sessionStorage.removeItem(travelerDraftStorageKey);
           setTravelerNames([""]);
           reset(defaultValues);
-          router.push(`/trips/${tripId}/overview`);
+          router.push(`/trips/${result.tripId}/overview`);
         } catch (error) {
           setServerError(error instanceof Error ? error.message : "Could not create trip.");
         }

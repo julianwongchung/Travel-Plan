@@ -22,7 +22,7 @@ create table if not exists public.trips (
   created_at timestamptz not null default now(),
   updated_at timestamptz,
   constraint trips_status_check check (trip_status in ('planning','active','completed','archived')),
-  constraint trips_currency_check check (default_currency in ('MYR','SGD','USD','VND','THB','IDR','PHP','JPY','KRW','TWD','HKD'))
+  constraint trips_currency_check check (default_currency in ('MYR','SGD','USD','VND','THB','IDR','PHP','JPY','KRW','TWD','HKD','CNY'))
 );
 
 create table if not exists public.trip_members (
@@ -110,7 +110,7 @@ create table if not exists public.trip_expenses (
   trip_id uuid not null references public.trips(id) on delete cascade,
   category text,
   expense_name text not null,
-  currency text not null check (currency in ('MYR','SGD','USD','VND','THB','IDR','PHP','JPY','KRW','TWD','HKD')),
+  currency text not null check (currency in ('MYR','SGD','USD','VND','THB','IDR','PHP','JPY','KRW','TWD','HKD','CNY')),
   total_amount numeric(12,2) not null check (total_amount >= 0),
   paid_by_traveler_id uuid,
   deleted_at timestamptz,

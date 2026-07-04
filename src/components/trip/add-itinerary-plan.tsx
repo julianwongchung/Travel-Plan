@@ -6,7 +6,6 @@ import { Bed, CalendarDays, ChevronLeft, MapPin, Plane, Plus, X } from "lucide-r
 import { addScheduleItem } from "@/lib/actions/trips";
 import { tripKeys } from "@/lib/db/query-keys";
 import type { Traveler } from "@/lib/db/types";
-import { formatDisplayDateTime } from "@/lib/utils/date-format";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-fields";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
@@ -40,33 +39,130 @@ const planTitles: Record<PlanType, string> = {
   place: "Add Place",
 };
 
-function FlightDateTimeInput({ label, name }: { label: string; name: string }) {
+type FlightDateTimeField = "departure" | "arrival";
+
+type ParsedFlightDateTime = {
+  date: string;
+  display: string;
+  iso: string;
+  time: string;
+};
+
+function padTwoDigits(value: string) {
+  return value.padStart(2, "0");
+}
+
+function isValidDateParts(year: string, month: string, day: string) {
+  const numericYear = Number(year);
+  const numericMonth = Number(month);
+  const numericDay = Number(day);
+  const date = new Date(Date.UTC(numericYear, numericMonth - 1, numericDay));
+
+  return (
+    Number.isInteger(numericYear)
+    && Number.isInteger(numericMonth)
+    && Number.isInteger(numericDay)
+    && date.getUTCFullYear() === numericYear
+    && date.getUTCMonth() === numericMonth - 1
+    && date.getUTCDate() === numericDay
+  );
+}
+
+function parseFlightDateTime(value: string): ParsedFlightDateTime | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:T|\s+)(\d{1,2}):(\d{2})$/);
+  const displayMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})\s+(\d{1,2}):(\d{2})$/);
+  const match = isoMatch ?? displayMatch;
+  if (!match) return null;
+
+  const [, first, second, third, hourValue, minuteValue] = match;
+  const isIsoInput = match === isoMatch;
+  const year = isIsoInput ? first : third;
+  const month = padTwoDigits(second);
+  const day = padTwoDigits(isIsoInput ? third : first);
+  const hour = padTwoDigits(hourValue);
+  const minute = minuteValue;
+
+  if (
+    Number(hour) > 23
+    || Number(minute) > 59
+    || !isValidDateParts(year, month, day)
+  ) {
+    return null;
+  }
+
+  const date = `${year}-${month}-${day}`;
+  const time = `${hour}:${minute}`;
+
+  return {
+    date,
+    display: `${day}/${month}/${year} ${time}`,
+    iso: `${date}T${time}`,
+    time,
+  };
+}
+
+function displayFlightDateTimeFromLocalValue(value: string) {
+  return parseFlightDateTime(value)?.display ?? "";
+}
+
+function FlightDateTimeInput({
+  field,
+  label,
+  segmentIndex,
+}: {
+  field: FlightDateTimeField;
+  label: string;
+  segmentIndex: number;
+}) {
   const [value, setValue] = useState("");
-  const displayValue = value ? formatDisplayDateTime(value) : "DD/MM/YYYY HH:mm";
+  const parsedValue = parseFlightDateTime(value);
+  const baseName = `flight_segments.${segmentIndex}`;
 
   return (
     <label className="grid min-w-0 gap-2 text-sm font-semibold text-[var(--foreground)]">
       <span>{label}</span>
       <span className="relative block min-h-12 min-w-0">
-        <span
-          aria-hidden="true"
-          className="flex min-h-12 w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--muted)] px-4 py-3 text-base text-[var(--foreground)] outline-none transition sm:text-sm"
-        >
-          <span className={value ? "tabular-nums" : "text-[var(--muted-foreground)]"}>
-            {displayValue}
-          </span>
-          <CalendarDays size={17} className="shrink-0 text-[var(--muted-foreground)]" />
-        </span>
-        <input
-          name={name}
-          type="datetime-local"
-          lang="en-GB"
+        <Input
+          type="text"
           required
+          inputMode="numeric"
+          placeholder="DD/MM/YYYY HH:mm"
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          onBlur={() => {
+            if (parsedValue) setValue(parsedValue.display);
+          }}
           aria-label={label}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          autoComplete="off"
+          className="pr-14 font-semibold tabular-nums"
         />
+        <span className="absolute right-0 top-0 grid size-12 place-items-center rounded-[16px] text-[var(--muted-foreground)]">
+          <CalendarDays
+            size={17}
+            aria-hidden="true"
+            className="pointer-events-none"
+          />
+          <input
+            type="datetime-local"
+            lang="en-GB"
+            aria-label={`${label} calendar`}
+            value={parsedValue?.iso ?? ""}
+            onChange={(event) => {
+              const displayValue = displayFlightDateTimeFromLocalValue(event.target.value);
+              setValue(displayValue);
+            }}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </span>
+      </span>
+      <input type="hidden" name={`${baseName}.${field}_at`} value={parsedValue?.iso ?? ""} />
+      <input type="hidden" name={`${baseName}.${field}_date`} value={parsedValue?.date ?? ""} />
+      <input type="hidden" name={`${baseName}.${field}_time`} value={parsedValue?.time ?? ""} />
+      <span className="text-xs font-semibold text-[var(--muted-foreground)]">
+        Use 24-hour time, e.g. 20/11/2026 18:00.
       </span>
     </label>
   );
@@ -215,7 +311,11 @@ export function AddItineraryPlan({
                             autoComplete="off"
                           />
                         </Field>
-                        <FlightDateTimeInput label="Departure date & time" name={`flight_segments.${segmentIndex}.departure_at`} />
+                        <FlightDateTimeInput
+                          field="departure"
+                          label="Departure date & time"
+                          segmentIndex={segmentIndex}
+                        />
                         <Field label="Destination / To">
                           <Input
                             name={`flight_segments.${segmentIndex}.destination`}
@@ -224,7 +324,11 @@ export function AddItineraryPlan({
                             autoComplete="off"
                           />
                         </Field>
-                        <FlightDateTimeInput label="Arrival date & time" name={`flight_segments.${segmentIndex}.arrival_at`} />
+                        <FlightDateTimeInput
+                          field="arrival"
+                          label="Arrival date & time"
+                          segmentIndex={segmentIndex}
+                        />
                       </div>
                     </section>
                   ))}

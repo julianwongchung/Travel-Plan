@@ -11,7 +11,7 @@ describe("trip logistics migration", () => {
     expect(migration).toContain("add column if not exists planned_time time");
   });
 
-  it("enforces trip membership and editor mutation permissions", () => {
+  it("enforces trip visibility and admin mutation permissions", () => {
     expect(migration).toContain("private.is_trip_member(trip_id)");
     expect(migration).toContain("private.can_edit_trip(trip_id)");
     expect(migration).toContain("enable row level security");

@@ -7,7 +7,7 @@ import { TripCardActions } from "@/components/trips/trip-card-actions";
 describe("TripCardActions", () => {
   afterEach(cleanup);
 
-  it("keeps Open primary and exposes owner actions", () => {
+  it("keeps Open primary and exposes admin trip actions", () => {
     render(<TripCardActions tripId="trip-1" memberCount={2} />);
 
     expect(screen.getByRole("link", { name: "Open" }).getAttribute("href")).toBe("/trips/trip-1/overview");
@@ -22,6 +22,6 @@ describe("TripCardActions", () => {
 
     expect(screen.getByRole("dialog", { name: "Invite People" })).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
-    expect(screen.getByLabelText("Role")).toBeTruthy();
+    expect(screen.queryByLabelText("Role")).toBeNull();
   });
 });

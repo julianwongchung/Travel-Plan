@@ -7,6 +7,7 @@ describe("country currency defaults", () => {
     expect(getCurrencyForCountry("Vietnam")).toBe("VND");
     expect(getCurrencyForCountry("Malaysia")).toBe("MYR");
     expect(getCurrencyForCountry("Singapore")).toBe("SGD");
+    expect(getCurrencyForCountry("China")).toBe("CNY");
   });
 
   it("falls back safely for unsupported country values", () => {

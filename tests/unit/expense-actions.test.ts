@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authedClient, revalidatePath, rpc } = vi.hoisted(() => ({
-  authedClient: vi.fn(),
+const { authedActiveClient, authedAdminClient, revalidatePath, rpc } = vi.hoisted(() => ({
+  authedActiveClient: vi.fn(),
+  authedAdminClient: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -11,7 +12,8 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/actions/helpers", () => ({
-  authedClient,
+  authedActiveClient,
+  authedAdminClient,
   value: (formData: FormData, key: string, fallback = "") => String(formData.get(key) ?? fallback).trim(),
   nullable: (formData: FormData, key: string) => {
     const text = String(formData.get(key) ?? "").trim();
@@ -45,8 +47,10 @@ describe("expense actions", () => {
   beforeEach(() => {
     revalidatePath.mockReset();
     rpc.mockReset();
-    authedClient.mockReset();
-    authedClient.mockResolvedValue({ rpc });
+    authedActiveClient.mockReset();
+    authedAdminClient.mockReset();
+    authedActiveClient.mockResolvedValue({ rpc });
+    authedAdminClient.mockResolvedValue({ rpc });
     rpc.mockResolvedValue({ error: null });
   });
 

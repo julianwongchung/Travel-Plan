@@ -21,7 +21,7 @@ type TravelerOption = {
   name: string;
 };
 
-const currencies = ["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD"] as const;
+const currencies = ["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD", "CNY"] as const;
 
 const expenseFormSchema = z.object({
   total_amount: z.coerce.number().positive("Amount must be greater than zero."),

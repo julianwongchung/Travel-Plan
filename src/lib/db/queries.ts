@@ -1,15 +1,16 @@
 import { redirect } from "next/navigation";
+import { ensureCurrentProfile } from "@/lib/db/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingLogisticsTableError } from "@/lib/utils/trip-logistics";
-import type { ExpenseSplit, Place, Role, ScheduleItem, Traveler, Trip, TripDay, TripExpense, TripFlight, TripHotel, TripInvitation, TripMember } from "@/lib/db/types";
+import type { AppRole, AppUser, ExpenseSplit, Place, Profile, ScheduleItem, Traveler, Trip, TripDay, TripExpense, TripFlight, TripHotel, TripInvitation, TripMember } from "@/lib/db/types";
 
 export type TripContext = {
   trip: Trip;
-  role: Role;
+  appRole: AppRole;
+  isAuthenticated: boolean;
 };
 
 export type TripListItem = Trip & {
-  role: Role;
   owner_email: string | null;
   traveler_count: number;
   member_count: number;
@@ -32,17 +33,53 @@ async function getUserId() {
   return { supabase, userId: data.user.id };
 }
 
+async function getOptionalUser() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  return { supabase, user: data.user ?? null };
+}
+
+export async function getCurrentProfile(): Promise<Profile> {
+  const { supabase } = await getUserId();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) redirect("/login");
+  const profile = await ensureCurrentProfile(supabase, data.user);
+  if (!profile.is_active) redirect("/login");
+  return profile as Profile;
+}
+
+export async function getOptionalCurrentProfile(): Promise<Profile | null> {
+  const { supabase, user } = await getOptionalUser();
+  if (!user) return null;
+
+  const profile = await ensureCurrentProfile(supabase, user);
+  if (!profile.is_active) {
+    await supabase.auth.signOut();
+    redirect("/login");
+  }
+
+  return profile as Profile;
+}
+
 export async function getTripContext(tripId: string): Promise<TripContext> {
-  const { supabase, userId } = await getUserId();
+  const { supabase } = await getUserId();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) redirect("/login");
+
+  const profile = await ensureCurrentProfile(supabase, data.user);
+  if (!profile.is_active) {
+    await supabase.auth.signOut();
+    redirect("/login");
+  }
+
   const { data: trip, error: tripError } = await supabase.from("trips").select("*").eq("id", tripId).single();
   if (tripError || !trip) redirect("/trips");
 
-  const typedTrip = trip as Trip;
-  const { data: member } = await supabase.from("trip_members").select("role").eq("trip_id", tripId).eq("user_id", userId).single();
-  const role = typedTrip.owner_id === userId ? "owner" : ((member?.role as Role | undefined) ?? null);
-  if (!role) redirect("/trips");
-
-  return { trip: typedTrip, role };
+  return {
+    trip: trip as Trip,
+    appRole: profile.app_role,
+    isAuthenticated: true,
+  };
 }
 
 export async function getTrips(): Promise<TripListItem[]> {
@@ -51,6 +88,13 @@ export async function getTrips(): Promise<TripListItem[]> {
   assertNoQueryError(error, "Could not load trips.");
 
   return (trips ?? []) as TripListItem[];
+}
+
+export async function getAppUsers(): Promise<AppUser[]> {
+  const supabase = await createClient();
+  const { data: users, error } = await supabase.rpc("list_app_users");
+  assertNoQueryError(error, "Could not load app users.");
+  return (users ?? []) as AppUser[];
 }
 
 export async function getOverviewData(tripId: string) {

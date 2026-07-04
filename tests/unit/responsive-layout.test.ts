@@ -69,14 +69,14 @@ describe("responsive layout contracts", () => {
     expect(expensesClient).toContain("hidden max-w-full overflow-x-auto lg:block");
   });
 
-  it("places original-currency expense totals above expense entry controls", () => {
+  it("places MYR-estimated expense totals above expense entry controls", () => {
     const summaryIndex = expensesClient.indexOf("<ExpenseTotalSummary");
     const expenseFormIndex = expensesClient.indexOf("<AddExpenseSheet");
 
     expect(summaryIndex).toBeGreaterThan(-1);
     expect(expenseFormIndex).toBeGreaterThan(summaryIndex);
-    expect(expensesClient).not.toContain("getMyrExchangeRates");
-    expect(expensesClient).not.toContain("calculateEstimatedMyr");
+    expect(expensesClient).toContain("calculateEstimatedMyr");
+    expect(expensesClient).toContain("estimatedMyrTotal");
   });
 
   it("uses the responsive expense sheet instead of an inline creation form", () => {

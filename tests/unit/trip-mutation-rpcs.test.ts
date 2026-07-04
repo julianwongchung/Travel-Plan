@@ -7,6 +7,12 @@ const migration = readFileSync("supabase/migrations/013_trip_mutation_rpcs_and_v
 
 describe("trip mutation RPC boundary", () => {
   it("creates trips with travelers through one transactional RPC", () => {
+    const createTripRecord = actions.slice(
+      actions.indexOf("async function createTripRecord"),
+      actions.indexOf("export async function createTrip"),
+    );
+
+    expect(createTripRecord).toContain("await authedAdminClient()");
     expect(actions).toContain('supabase.rpc("create_trip_with_travelers"');
     expect(actions).toContain("p_traveler_names: travelerNames");
     expect(actions).not.toContain('.from("travelers").insert');

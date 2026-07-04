@@ -1,8 +1,9 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type Role = "owner" | "editor" | "viewer";
+export type AppRole = "admin" | "viewer";
+export type TripMembershipRole = "viewer";
 export type TripStatus = "planning" | "active" | "completed" | "archived";
-export type Currency = "MYR" | "SGD" | "USD" | "VND" | "THB" | "IDR" | "PHP" | "JPY" | "KRW" | "TWD" | "HKD";
+export type Currency = "MYR" | "SGD" | "USD" | "VND" | "THB" | "IDR" | "PHP" | "JPY" | "KRW" | "TWD" | "HKD" | "CNY";
 export type PlaceType = "food" | "hotel" | "attraction" | "shopping" | "transport";
 export type PlacePriority = "must-go" | "nice-to-have" | "skip";
 
@@ -11,9 +12,13 @@ export type Profile = {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  app_role: AppRole;
+  is_active: boolean;
   created_at: string;
   updated_at: string | null;
 };
+
+export type AppUser = Pick<Profile, "id" | "email" | "full_name" | "app_role" | "is_active" | "created_at" | "updated_at">;
 
 export type Trip = {
   id: string;
@@ -33,7 +38,7 @@ export type TripMember = {
   id: string;
   trip_id: string;
   user_id: string;
-  role: Role;
+  role: TripMembershipRole;
   created_at: string;
   profiles?: Pick<Profile, "email" | "full_name"> | null;
 };
@@ -42,7 +47,7 @@ export type TripInvitation = {
   id: string;
   trip_id: string;
   invited_email: string;
-  role: Exclude<Role, "owner">;
+  role: TripMembershipRole;
   invited_by: string;
   status: "pending" | "accepted" | "cancelled";
   accepted_at: string | null;
@@ -196,14 +201,15 @@ export type Database = {
       soft_delete_trip: { Args: { p_trip_id: string }; Returns: void };
       restore_deleted_trip: { Args: { p_trip_id: string }; Returns: void };
       leave_trip: { Args: { p_trip_id: string }; Returns: void };
-      invite_trip_member: { Args: { p_trip_id: string; p_email: string; p_role: "editor" | "viewer" }; Returns: string };
+      invite_trip_member: { Args: { p_trip_id: string; p_email: string; p_role: TripMembershipRole }; Returns: string };
       remove_trip_member: { Args: { p_member_id: string }; Returns: void };
-      update_trip_member_role: { Args: { p_member_id: string; p_role: "editor" | "viewer" }; Returns: void };
+      update_trip_member_role: { Args: { p_member_id: string; p_role: TripMembershipRole }; Returns: void };
       cancel_trip_invitation: { Args: { p_invitation_id: string }; Returns: void };
       add_traveler: { Args: { p_trip_id: string; p_name: string }; Returns: string };
       ensure_trip_day: { Args: { p_trip_id: string; p_date: string; p_day_number: number | null }; Returns: string };
       create_schedule_item: { Args: { p_trip_id: string; p_trip_day_id: string | null; p_trip_day_date: string | null; p_trip_day_number: number | null; p_time_block: string | null; p_title: string; p_description: string | null; p_transport: string | null; p_food: string | null; p_notes: string | null }; Returns: string };
-      get_trip_cards: { Args: Record<string, never>; Returns: Array<Trip & { role: Role; owner_email: string | null; traveler_count: number; member_count: number }> };
+      get_trip_cards: { Args: Record<string, never>; Returns: Array<Trip & { owner_email: string | null; traveler_count: number; member_count: number }> };
+      list_app_users: { Args: Record<string, never>; Returns: AppUser[] };
       create_place: { Args: { p_trip_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null; p_planned_date: string | null; p_planned_time: string | null }; Returns: string };
       update_place: { Args: { p_place_id: string; p_name: string; p_type: PlaceType; p_area: string | null; p_google_map_link: string | null; p_notes: string | null; p_priority: PlacePriority; p_rating: number | null }; Returns: void };
       soft_delete_place: { Args: { p_place_id: string }; Returns: void };

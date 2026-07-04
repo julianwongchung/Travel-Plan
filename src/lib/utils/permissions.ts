@@ -1,15 +1,43 @@
-import type { Role, TripStatus } from "@/lib/db/types";
+import type { AppRole, TripStatus } from "@/lib/db/types";
 
-export function canEdit(role: Role) {
-  return role === "owner" || role === "editor";
+export function isAppAdmin(appRole: AppRole) {
+  return appRole === "admin";
 }
 
-export function canEditTrip(role: Role, trip: { deleted_at: string | null; trip_status: TripStatus }) {
-  return canEdit(role) && trip.deleted_at === null && (trip.trip_status === "planning" || trip.trip_status === "active");
+export function canEdit(appRole: AppRole) {
+  return isAppAdmin(appRole);
 }
 
-export function canManageTrip(role: Role) {
-  return role === "owner";
+export function canEditTrip(trip: { deleted_at: string | null; trip_status: TripStatus }, appRole: AppRole) {
+  return canEdit(appRole) && trip.deleted_at === null;
+}
+
+export function canManageTrip(appRole: AppRole) {
+  return isAppAdmin(appRole);
+}
+
+export function canAddExpense(appRole: AppRole) {
+  return appRole === "admin" || appRole === "viewer";
+}
+
+export function canAccessOverview(appRole: AppRole) {
+  return appRole === "admin" || appRole === "viewer";
+}
+
+export function canAccessExpenses(appRole: AppRole) {
+  return appRole === "admin" || appRole === "viewer";
+}
+
+export function canAccessTripPlan(appRole: AppRole) {
+  return appRole === "admin" || appRole === "viewer";
+}
+
+export function canAccessPlaces(appRole: AppRole) {
+  return appRole === "admin" || appRole === "viewer";
+}
+
+export function canAccessAdmin(appRole: AppRole) {
+  return isAppAdmin(appRole);
 }
 
 export function canTransitionTrip(from: TripStatus, to: TripStatus) {

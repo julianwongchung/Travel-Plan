@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { throwSafeActionError } from "@/lib/actions/action-errors";
-import { authedClient, nullable, value } from "@/lib/actions/helpers";
+import { authedAdminClient, nullable, value } from "@/lib/actions/helpers";
 import type { PlacePriority, PlaceType } from "@/lib/db/types";
 
 const typeSchema = z.enum(["food", "hotel", "attraction", "shopping", "transport"]);
 const prioritySchema = z.enum(["must-go", "nice-to-have", "skip"]);
 
 export async function createPlace(tripId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("create_place", {
     p_trip_id: tripId,
     p_name: value(formData, "name"),
@@ -29,7 +29,7 @@ export async function createPlace(tripId: string, formData: FormData) {
 }
 
 export async function updatePlace(tripId: string, placeId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("update_place", {
     p_place_id: placeId,
     p_name: value(formData, "name"),
@@ -46,14 +46,14 @@ export async function updatePlace(tripId: string, placeId: string, formData: For
 }
 
 export async function softDeletePlace(tripId: string, placeId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("soft_delete_place", { p_place_id: placeId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);
 }
 
 export async function restorePlace(tripId: string, placeId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("restore_place", { p_place_id: placeId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/places`);

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateEqualSplits,
+  calculateEstimatedMyr,
+  estimateAmountInMyr,
   summarizeByCategoryCurrency,
   summarizeByCurrency,
   validateCustomSplits,
@@ -26,6 +28,27 @@ describe("expense calculations", () => {
       { currency: "SGD", total_amount: 5.5 },
       { currency: "JPY", total_amount: 1000 },
     ])).toEqual({ SGD: 15.5, JPY: 1000 });
+  });
+
+  it("estimates mixed-currency expenses in MYR without changing original totals", () => {
+    const expenses = [
+      { currency: "MYR", total_amount: 40 },
+      { currency: "SGD", total_amount: 10 },
+      { currency: "JPY", total_amount: 1000 },
+      { currency: "VND", total_amount: 100000 },
+      { currency: "CNY", total_amount: 10 },
+    ];
+
+    expect(estimateAmountInMyr("SGD", 10)).toBe(35);
+    expect(estimateAmountInMyr("CNY", 10)).toBe(6.5);
+    expect(calculateEstimatedMyr(expenses)).toBeCloseTo(130.5, 2);
+    expect(summarizeByCurrency(expenses)).toEqual({
+      CNY: 10,
+      JPY: 1000,
+      MYR: 40,
+      SGD: 10,
+      VND: 100000,
+    });
   });
 
   it("groups category totals by original currency without conversion", () => {

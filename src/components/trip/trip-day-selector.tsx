@@ -48,7 +48,7 @@ export function TripDaySelector({
         className={cn(
           isOverview
             ? "grid grid-flow-col auto-cols-[calc(20%_-_0.4rem)] gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            : "flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            : "grid grid-flow-col auto-cols-[calc(20%_-_0.3rem)] gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
         {days.map((day, dayIndex) => {
@@ -66,7 +66,7 @@ export function TripDaySelector({
               className={cn(
                 isOverview
                   ? "ios-pressable grid min-h-[72px] w-full min-w-0 place-items-center rounded-[14px] border px-1 py-2 text-center shadow-sm sm:min-h-[78px]"
-                  : "ios-pressable grid min-h-[56px] min-w-[82px] shrink-0 place-items-center rounded-[15px] border px-2 py-1.5 text-center",
+                  : "ios-pressable grid min-h-[56px] w-full min-w-0 place-items-center rounded-[15px] border px-1 py-1.5 text-center sm:px-2",
                 selected
                   ? "border-transparent bg-[var(--primary)] text-white shadow-[0_8px_22px_rgba(8,120,249,0.24)]"
                   : isOverview

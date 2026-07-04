@@ -7,6 +7,7 @@ import {
   selectFeaturedHotel,
   validateHotelStay,
 } from "@/lib/utils/trip-logistics";
+import { serializeFlightPlan } from "@/lib/utils/schedule-item-plan";
 import type { Place, TripFlight, TripHotel } from "@/lib/db/types";
 
 const hotel = (overrides: Partial<TripHotel> = {}): TripHotel => ({
@@ -125,6 +126,50 @@ describe("trip logistics", () => {
       notes: "Window seat",
       source: "plan",
     }]);
+  });
+
+  it("normalizes serialized plan flights without exposing raw flight JSON", () => {
+    const result = normalizePlanLogistics(
+      [{
+        id: "day-1",
+        date: "2026-11-20",
+        route: "Departure",
+      }],
+      [{
+        id: "serialized-flight",
+        trip_day_id: "day-1",
+        time_block: "18:00",
+        title: "KCH \u2192 KLIA T1",
+        description: serializeFlightPlan([
+          {
+            origin: "KCH",
+            destination: "KLIA T1",
+            departureDate: "2026-11-20",
+            departureTime: "18:00",
+            arrivalDate: "2026-11-20",
+            arrivalTime: "22:00",
+          },
+        ], ["CLARRIE"], null),
+        transport: "Flight",
+        food: null,
+        notes: null,
+      }],
+    );
+
+    expect(result.flights).toMatchObject([{
+      id: "plan-serialized-flight",
+      flightNumber: "KCH \u2192 KLIA T1",
+      flightDate: "2026-11-20",
+      flightTime: "18:00",
+      passengerName: "CLARRIE",
+      departure: "KCH",
+      arrival: "KLIA T1",
+      notes: null,
+      connectionSummary: "Direct flight",
+      source: "plan",
+    }]);
+    expect(result.flights[0].segments).toHaveLength(1);
+    expect(JSON.stringify(result.flights[0])).not.toContain("__travel_os_flight_plan_v1__");
   });
 
   it("selects a current hotel before a future hotel", () => {

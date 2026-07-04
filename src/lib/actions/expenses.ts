@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { throwSafeActionError } from "@/lib/actions/action-errors";
-import { authedClient, nullable, value } from "@/lib/actions/helpers";
+import { authedActiveClient, authedAdminClient, nullable, value } from "@/lib/actions/helpers";
 import type { Currency } from "@/lib/db/types";
 import { calculateEqualSplits, validateCustomSplits, type SplitInput } from "@/lib/utils/expense-calculations";
 
-const currencySchema = z.enum(["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD"]);
+const currencySchema = z.enum(["MYR", "SGD", "USD", "VND", "THB", "IDR", "PHP", "JPY", "KRW", "TWD", "HKD", "CNY"]);
 const categorySchema = z.enum(["food", "transport", "purchase"]).or(z.string().trim().min(1));
 const amountSchema = z.coerce
   .number()
@@ -119,7 +119,7 @@ function parseSplits(formData: FormData, total: number, paidByTravelerId: string
 }
 
 export async function createExpense(tripId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedActiveClient();
   const total = parsePositiveAmount(value(formData, "total_amount", ""));
   const paidByTravelerId = nullable(formData, "paid_by_traveler_id");
   if (!paidByTravelerId) {
@@ -155,7 +155,7 @@ export async function createExpense(tripId: string, formData: FormData) {
 }
 
 export async function updateExpense(tripId: string, expenseId: string, formData: FormData) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const total = parsePositiveAmount(value(formData, "total_amount", ""));
   const paidByTravelerId = nullable(formData, "paid_by_traveler_id");
   if (!paidByTravelerId) {
@@ -191,14 +191,14 @@ export async function updateExpense(tripId: string, expenseId: string, formData:
 }
 
 export async function softDeleteExpense(tripId: string, expenseId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("soft_delete_expense", { p_expense_id: expenseId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/expenses`);
 }
 
 export async function restoreExpense(tripId: string, expenseId: string) {
-  const supabase = await authedClient();
+  const supabase = await authedAdminClient();
   const { error } = await supabase.rpc("restore_expense", { p_expense_id: expenseId });
   if (error) throwSafeActionError(error);
   revalidatePath(`/trips/${tripId}/expenses`);

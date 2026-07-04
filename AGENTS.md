@@ -59,7 +59,7 @@ Also build:
 Page responsibilities:
 
 - Overview is a read-only dashboard. It must not contain add, edit, delete, or reorder controls.
-- Trip Plan is the editable itinerary planning page. It owns day-tab planning, add/edit/delete/reorder schedule item controls, and must respect role permissions.
+- Trip Plan is the editable itinerary planning page. It owns day-tab planning, add/edit/delete/reorder schedule item controls, and must respect account permissions.
 - Places is for saved places.
 - Expenses is for expense tracking.
 
@@ -80,9 +80,9 @@ Do not add these unless explicitly requested later:
 
 Every user has their own private workspace by default.
 
-A trip is visible to another user only when the owner explicitly invites that user to that specific trip.
+A trip is visible to another user only when Admin explicitly grants access to that specific trip.
 
-Inviting someone to one trip must never expose the owner's other trips.
+Inviting someone to one trip must never expose other trips.
 
 Correct model:
 
@@ -100,46 +100,39 @@ Do not create one physical database per user.
 
 # Permission Rules
 
-Roles:
+Account types:
 
-- Owner
-- Editor
+- Admin
 - Viewer
 
-Owner can:
+Admin can:
 
-- Manage trip
-- Edit itinerary
-- Add/edit places
-- Add/edit expenses
+- Access all pages
+- View, create, edit, archive, restore, and delete trips
+- Edit overview items
+- Add, edit, delete, and reorder itinerary items
+- Add, edit, and delete flights, hotels, places, and expenses
 - Invite members
-- Change roles
-- Complete trip
-- Archive trip
-- Soft delete trip
-- Transfer ownership
-
-Editor can:
-
-- Edit itinerary
-- Add/edit places
-- Add/edit expenses
-- Leave trip
-
-Editor cannot:
-
-- Invite members
-- Archive trip
-- Complete trip
-- Delete trip
-- Transfer ownership
+- Manage users
+- Assign Admin or Viewer account type
+- Access the admin page
 
 Viewer can:
 
-- View only
-- Leave trip
+- Log in
+- View allowed trip pages
+- View overview, itinerary, flights, hotels, places, and expenses
+- Add new expenses
 
-Viewer must not see mutation controls.
+Viewer cannot:
+
+- Create, edit, archive, restore, or delete trips
+- Add, edit, delete, or reorder itinerary items
+- Add, edit, or delete flights, hotels, or places
+- Manage users or account types
+- Access admin pages or hidden admin routes
+
+Viewer must only see the Add Expense mutation control.
 
 ---
 
@@ -217,15 +210,16 @@ SUPABASE_SERVICE_ROLE_KEY
 
 RLS is the final permission layer.
 
-Client-side role checks are UX only.
+Client-side account checks are UX only.
 
 Every trip-scoped table must check trip membership.
 
 Use helper functions in the `private` schema:
 
 - `private.is_trip_member(trip_id)`
-- `private.is_trip_owner(trip_id)`
+- `private.can_manage_trip(trip_id)`
 - `private.can_edit_trip(trip_id)`
+- `private.can_add_expense(trip_id)`
 - `private.normalize_email(email)`
 
 ---
@@ -274,7 +268,7 @@ All viewports:
 - Retry actions
 - Permission denied toast
 - Session expired toast
-- Role badge
+- Account type badge
 
 ---
 
@@ -358,12 +352,11 @@ Playwright E2E should cover:
 - Add/edit/delete/reorder itinerary items from Trip Plan
 - Add place
 - Add expense
-- Owner invites editor
-- Owner invites viewer
-- Viewer cannot mutate
-- Editor cannot perform owner-only actions
-- Owner completes trip
-- Owner archives and restores trip
+- Admin invites viewer
+- Viewer can add expense
+- Viewer cannot mutate trip, itinerary, flight, hotel, place, user, or permission data
+- Admin completes trip
+- Admin archives and restores trip
 - Session expiry handling
 
 Vitest unit tests should cover:
@@ -402,11 +395,11 @@ When debugging, always provide:
 
 Do not break:
 
-- Private-first ownership
+- Private-first control
 - Trip-level sharing
 - RLS enforcement
 - RPC mutation boundaries
-- React Query ownership
+- React Query data source boundaries
 - Realtime invalidation-only pattern
 - No-signup V1 scope
 - No-settlement V1 scope

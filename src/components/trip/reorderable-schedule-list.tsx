@@ -42,6 +42,7 @@ import {
   type FlightPlan,
   type FlightPlanSegment,
 } from "@/lib/utils/schedule-item-plan";
+import { passengerColors, type PassengerColor } from "@/lib/utils/traveler-colors";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form-fields";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
@@ -98,6 +99,21 @@ const categoryStyles = {
   transport: { label: "Transport", icon: BusFront, accent: "#0891b2", badge: "bg-cyan-600 text-white" },
   other: { label: "Other", icon: CircleEllipsis, accent: "#64748b", badge: "bg-slate-600 text-white" },
 };
+
+function TravelerChip({ passenger }: { passenger: PassengerColor }) {
+  return (
+    <span
+      className="inline-flex min-h-6 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
+      style={{
+        backgroundColor: passenger.color.soft,
+        borderColor: passenger.color.border,
+        color: passenger.color.text,
+      }}
+    >
+      {passenger.name}
+    </span>
+  );
+}
 
 function emptyFlightSegment(previous?: FlightPlanSegment): FlightPlanSegment {
   return {
@@ -166,7 +182,7 @@ function FlightScheduleItemEditor({
   disabled: boolean;
   flightPlan: FlightPlan;
   item: ScheduleItem;
-  travelers: Pick<Traveler, "id" | "name">[];
+  travelers: Pick<Traveler, "id" | "name" | "created_at">[];
   tripId: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -337,10 +353,16 @@ function FlightScheduleItemEditor({
               <div className="grid gap-2 text-sm font-semibold text-[var(--foreground)]">
                 <span>Passenger</span>
                 <div className="grid gap-2">
-                  {travelers.map((traveler) => (
+                  {travelers.map((traveler) => {
+                    const travelerPassenger = passengerColors([traveler.name], travelers)[0];
+                    return (
                     <label
                       key={traveler.id}
                       className="ios-pressable flex min-h-11 items-center gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--card-strong)] px-3 text-sm font-semibold"
+                      style={travelerPassenger ? {
+                        borderColor: selectedPassengers.includes(traveler.name) ? travelerPassenger.color.border : undefined,
+                        backgroundColor: selectedPassengers.includes(traveler.name) ? travelerPassenger.color.soft : undefined,
+                      } : undefined}
                     >
                       <input
                         type="checkbox"
@@ -348,11 +370,13 @@ function FlightScheduleItemEditor({
                         value={traveler.name}
                         checked={selectedPassengers.includes(traveler.name)}
                         onChange={() => togglePassenger(traveler.name)}
-                        className="size-4 accent-[var(--primary)]"
+                        className="size-4"
+                        style={travelerPassenger ? { accentColor: travelerPassenger.color.accent } : undefined}
                       />
-                      <span>{traveler.name}</span>
+                      {travelerPassenger ? <TravelerChip passenger={travelerPassenger} /> : <span>{traveler.name}</span>}
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -541,9 +565,11 @@ function ScheduleItemPlanEditor({
 }
 
 function SortableScheduleItem({
+  allowEdit,
+  allowRemove,
+  allowReorder,
   canMoveDown,
   canMoveUp,
-  editable,
   index,
   isPending,
   item,
@@ -552,15 +578,17 @@ function SortableScheduleItem({
   travelers,
   tripId,
 }: {
+  allowEdit: boolean;
+  allowRemove: boolean;
+  allowReorder: boolean;
   canMoveDown: boolean;
   canMoveUp: boolean;
-  editable: boolean;
   index: number;
   isPending: boolean;
   item: ScheduleItem;
   onMoveDown: () => void;
   onMoveUp: () => void;
-  travelers: Pick<Traveler, "id" | "name">[];
+  travelers: Pick<Traveler, "id" | "name" | "created_at">[];
   tripId: string;
 }) {
   const {
@@ -572,15 +600,20 @@ function SortableScheduleItem({
     transition,
   } = useSortable({
     id: item.id,
-    disabled: !editable || isPending,
+    disabled: !allowReorder || isPending,
   });
   const mapLink = webLink(item.notes);
   const category = scheduleItemCategory(item);
   const categoryStyle = categoryStyles[category];
   const CategoryIcon = categoryStyle.icon;
   const flightPlan = parseFlightPlanDescription(item.description);
-  const canEditPlanItem = editable && !flightPlan && (category === "lodging" || category === "activity");
+  const flightPassengerColors = flightPlan ? passengerColors(flightPlan.passengers, travelers) : [];
+  const singleFlightPassenger = flightPassengerColors.length === 1 ? flightPassengerColors[0] : null;
+  const canEditPlanItem = allowEdit && !flightPlan && (category === "lodging" || category === "activity");
   const flightPassengers = flightPlan?.passengers.join(", ") ?? null;
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [isRemoving, startRemoveTransition] = useTransition();
+  const queryClient = useQueryClient();
   const detail = flightPlan
     ? [flightStopoverSummary(flightPlan.segments), flightPassengers ? `Passengers: ${flightPassengers}` : null].filter(Boolean).join(" - ")
     : (item.description ?? item.time_block ?? (mapLink ? null : item.notes));
@@ -588,8 +621,29 @@ function SortableScheduleItem({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 20 : undefined,
-    "--itinerary-accent": categoryStyle.accent,
+    "--itinerary-accent": singleFlightPassenger?.color.accent ?? categoryStyle.accent,
   } as CSSProperties;
+
+  function handleRemoveSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRemoveError(null);
+
+    startRemoveTransition(async () => {
+      try {
+        await removeScheduleItem(tripId, item.id);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
+          queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
+        ]);
+      } catch (submissionError) {
+        setRemoveError(
+          submissionError instanceof Error
+            ? submissionError.message
+            : "Unable to remove this item.",
+        );
+      }
+    });
+  }
 
   return (
     <div
@@ -602,7 +656,7 @@ function SortableScheduleItem({
       }`}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {editable ? (
+        {allowReorder ? (
           <button
             type="button"
             aria-label={`Reorder ${item.title}`}
@@ -615,7 +669,10 @@ function SortableScheduleItem({
           </button>
         ) : null}
 
-        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
+        <span
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white"
+          style={singleFlightPassenger ? { backgroundColor: singleFlightPassenger.color.accent } : undefined}
+        >
           {index + 1}
         </span>
 
@@ -626,6 +683,9 @@ function SortableScheduleItem({
               <CategoryIcon size={11} />
               {categoryStyle.label}
             </span>
+            {flightPassengerColors.map((passenger) => (
+              <TravelerChip key={`${item.id}-${passenger.name}`} passenger={passenger} />
+            ))}
             {item.time_block ? (
               <span className="text-xs font-medium text-[var(--muted-foreground)]">{item.time_block}</span>
             ) : null}
@@ -661,7 +721,7 @@ function SortableScheduleItem({
             </a>
           ) : null}
 
-          {editable && flightPlan ? (
+          {allowEdit && flightPlan ? (
             <FlightScheduleItemEditor
               disabled={isPending}
               flightPlan={flightPlan}
@@ -680,14 +740,14 @@ function SortableScheduleItem({
             />
           ) : null}
 
-          {editable ? (
-            <form action={removeScheduleItem.bind(null, tripId, item.id)}>
+          {allowRemove ? (
+            <form onSubmit={handleRemoveSubmit}>
               <Button
                 type="submit"
                 variant="ghost"
                 className="size-11 shrink-0 p-0 text-[var(--danger)]"
                 aria-label={`Remove ${item.title}`}
-                disabled={isPending}
+                disabled={isPending || isRemoving}
               >
                 <Trash2 size={16} />
               </Button>
@@ -696,7 +756,13 @@ function SortableScheduleItem({
         </div>
       </div>
 
-      {editable ? (
+      {removeError ? (
+        <p role="alert" className="mt-2 rounded-[14px] bg-[var(--danger-soft)] px-3 py-2 text-xs font-semibold text-[var(--danger)]">
+          {removeError}
+        </p>
+      ) : null}
+
+      {allowReorder ? (
         <div className="mt-1 flex justify-end gap-1 border-t border-[var(--border)] pt-1 sm:hidden">
           <button
             type="button"
@@ -723,21 +789,38 @@ function SortableScheduleItem({
 }
 
 export function ReorderableScheduleList({
+  allowEdit,
+  allowRemove,
+  allowReorder,
+  removeDisabledItemIds = [],
+  targetDayDate,
+  targetDayNumber,
   tripId,
   tripDayId,
   items,
   editable,
   travelers = [],
 }: {
+  allowEdit?: boolean;
+  allowRemove?: boolean;
+  allowReorder?: boolean;
+  removeDisabledItemIds?: string[];
+  targetDayDate?: string;
+  targetDayNumber?: number;
   tripId: string;
   tripDayId: string;
   items: ScheduleItem[];
   editable: boolean;
-  travelers?: Pick<Traveler, "id" | "name">[];
+  travelers?: Pick<Traveler, "id" | "name" | "created_at">[];
 }) {
   const [orderedItems, setOrderedItems] = useState(() => ordered(items));
+  const [reorderError, setReorderError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
+  const canEditItems = allowEdit ?? editable;
+  const canRemoveItems = allowRemove ?? editable;
+  const canReorderItems = allowReorder ?? editable;
+  const removeDisabledItems = new Set(removeDisabledItemIds);
   const sensors = useSensors(
     useSensor(NonTouchPointerSensor, {
       activationConstraint: { distance: 8 },
@@ -757,21 +840,34 @@ export function ReorderableScheduleList({
     if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return;
 
     const nextItems = renumber(arrayMove(orderedItems, activeIndex, overIndex));
+    setReorderError(null);
     setOrderedItems(nextItems);
 
     startTransition(async () => {
       try {
-        await reorderScheduleItems(
-          tripId,
-          tripDayId,
-          nextItems.map((item) => item.id),
-        );
+        const orderedIds = nextItems.map((item) => item.id);
+        if (targetDayDate) {
+          await reorderScheduleItems(
+            tripId,
+            tripDayId,
+            orderedIds,
+            targetDayDate,
+            targetDayNumber,
+          );
+        } else {
+          await reorderScheduleItems(tripId, tripDayId, orderedIds);
+        }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: tripKeys.schedule(tripId) }),
           queryClient.invalidateQueries({ queryKey: tripKeys.overview(tripId) }),
         ]);
-      } catch {
+      } catch (submissionError) {
         setOrderedItems(previousItems);
+        setReorderError(
+          submissionError instanceof Error
+            ? submissionError.message
+            : "Unable to save this itinerary order.",
+        );
       }
     });
   }
@@ -811,9 +907,11 @@ export function ReorderableScheduleList({
               tripId={tripId}
               item={item}
               index={index}
+              allowEdit={canEditItems}
+              allowRemove={canRemoveItems && !removeDisabledItems.has(item.id)}
+              allowReorder={canReorderItems}
               canMoveUp={index > 0}
               canMoveDown={index < orderedItems.length - 1}
-              editable={editable}
               isPending={isPending}
               onMoveUp={() => moveBy(index, -1)}
               onMoveDown={() => moveBy(index, 1)}
@@ -821,6 +919,11 @@ export function ReorderableScheduleList({
             />
           ))}
         </div>
+        {reorderError ? (
+          <p role="alert" className="rounded-[14px] bg-[var(--danger-soft)] px-3 py-2 text-xs font-semibold text-[var(--danger)]">
+            {reorderError}
+          </p>
+        ) : null}
       </SortableContext>
     </DndContext>
   );

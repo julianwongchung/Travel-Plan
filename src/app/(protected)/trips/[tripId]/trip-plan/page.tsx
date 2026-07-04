@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
 import { TripPlanClient } from "@/components/trip/trip-plan-client";
 import { getOverviewData, getTripContext } from "@/lib/db/queries";
-import { canEditTrip } from "@/lib/utils/permissions";
+import { canAccessTripPlan, canEditTrip } from "@/lib/utils/permissions";
 
 export default async function TripPlanPage({
   params,
@@ -11,13 +12,17 @@ export default async function TripPlanPage({
 }) {
   const { tripId } = await params;
   const selectedDayDate = (await searchParams).day;
-  const [{ trip, role }, data] = await Promise.all([getTripContext(tripId), getOverviewData(tripId)]);
+  const [{ trip, appRole }, data] = await Promise.all([getTripContext(tripId), getOverviewData(tripId)]);
+
+  if (!canAccessTripPlan(appRole)) {
+    redirect("/trips");
+  }
 
   return (
     <TripPlanClient
       trip={trip}
       tripId={tripId}
-      editable={canEditTrip(role, trip)}
+      editable={canEditTrip(trip, appRole)}
       selectedDayDate={selectedDayDate}
       initialData={{
         days: data.days,

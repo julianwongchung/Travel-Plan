@@ -17,7 +17,7 @@ describe("WorkspaceMobileNav", () => {
   });
 
   it("keeps the mobile navigation available from My Trips", () => {
-    render(<WorkspaceMobileNav tripId="trip-1" />);
+    render(<WorkspaceMobileNav tripId="trip-1" appRole="viewer" />);
 
     const navigation = screen.getByRole("navigation", { name: "Workspace navigation" });
     expect(navigation.className).toContain("fixed");
@@ -26,6 +26,18 @@ describe("WorkspaceMobileNav", () => {
     expect(screen.getByRole("link", { name: "Plan" }).getAttribute("href")).toBe("/trips/trip-1/trip-plan");
     expect(screen.getByRole("link", { name: "Places" }).getAttribute("href")).toBe("/trips/trip-1/places");
     expect(screen.getByRole("link", { name: "Expenses" }).getAttribute("href")).toBe("/trips/trip-1/expenses");
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  });
+
+  it("shows the full mobile navigation for admins", () => {
+    render(<WorkspaceMobileNav tripId="trip-1" appRole="admin" />);
+
+    expect(screen.getByRole("link", { name: "Trips" }).getAttribute("href")).toBe("/trips");
+    expect(screen.getByRole("link", { name: "Overview" }).getAttribute("href")).toBe("/trips/trip-1/overview");
+    expect(screen.getByRole("link", { name: "Plan" }).getAttribute("href")).toBe("/trips/trip-1/trip-plan");
+    expect(screen.getByRole("link", { name: "Places" }).getAttribute("href")).toBe("/trips/trip-1/places");
+    expect(screen.getByRole("link", { name: "Expenses" }).getAttribute("href")).toBe("/trips/trip-1/expenses");
+    expect(screen.getByRole("link", { name: "Admin" }).getAttribute("href")).toBe("/admin");
   });
 
   it.each([
@@ -36,7 +48,7 @@ describe("WorkspaceMobileNav", () => {
     { route: "/trips/trip-1/expenses", active: "Expenses" },
   ])("keeps the active highlight behind $active", ({ route, active }) => {
     pathname.value = route;
-    render(<WorkspaceMobileNav tripId="trip-1" />);
+    render(<WorkspaceMobileNav tripId="trip-1" appRole="admin" />);
 
     const activeLink = screen.getByRole("link", { name: active });
     const currentLinks = screen.getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page");

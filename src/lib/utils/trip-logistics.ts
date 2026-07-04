@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { Place, TripFlight, TripHotel } from "@/lib/db/types";
-import { scheduleItemCategory } from "@/lib/utils/schedule-item-plan";
+import {
+  flightRouteSummary,
+  flightStopoverSummary,
+  parseFlightPlanDescription,
+  scheduleItemCategory,
+  type FlightPlanSegment,
+} from "@/lib/utils/schedule-item-plan";
 
 const requiredText = (label: string) => z.string().trim().min(1, `${label} is required.`);
 
@@ -62,6 +68,8 @@ export type FlightDisplayItem = {
   departure: string | null;
   arrival: string | null;
   notes: string | null;
+  segments?: FlightPlanSegment[];
+  connectionSummary?: string;
   source: "structured" | "plan";
 };
 
@@ -181,6 +189,26 @@ export function normalizePlanLogistics(days: PlanDay[], scheduleItems: PlanSched
     }
 
     if (category === "flight") {
+      const flightPlan = parseFlightPlanDescription(item.description);
+      if (flightPlan) {
+        const firstSegment = flightPlan.segments[0];
+        const lastSegment = flightPlan.segments.at(-1);
+        flights.push({
+          id: `plan-${item.id}`,
+          flightNumber: flightRouteSummary(flightPlan.segments) || item.title,
+          flightDate: firstSegment?.departureDate ?? day.date,
+          flightTime: firstSegment?.departureTime ?? item.time_block ?? "00:00",
+          passengerName: flightPlan.passengers.join(", ") || "Passenger not set",
+          departure: firstSegment?.origin ?? null,
+          arrival: lastSegment?.destination ?? null,
+          notes: flightPlan.notes,
+          segments: flightPlan.segments,
+          connectionSummary: flightStopoverSummary(flightPlan.segments),
+          source: "plan",
+        });
+        return;
+      }
+
       flights.push({
         id: `plan-${item.id}`,
         flightNumber: item.title.replace(/^Flight\s+/i, "").trim() || item.title,

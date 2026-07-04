@@ -16,8 +16,6 @@ const statusTones: Record<string, StatusTone> = {
   active: "success",
   completed: "success",
   archived: "neutral",
-  owner: "primary",
-  editor: "success",
   viewer: "neutral",
   deleted: "danger",
   private: "neutral",

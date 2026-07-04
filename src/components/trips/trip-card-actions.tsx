@@ -6,7 +6,7 @@ import { archiveTrip, completeTrip } from "@/lib/actions/trips";
 import { inviteTripMember } from "@/lib/actions/invitations";
 import type { TripStatus } from "@/lib/db/types";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/form-fields";
+import { Field, Input } from "@/components/ui/form-fields";
 import { IOSBottomSheet } from "@/components/ui/ios-bottom-sheet";
 
 export function TripCardActions({
@@ -67,12 +67,6 @@ export function TripCardActions({
         <p className="mb-4 text-sm text-[var(--muted-foreground)]">{memberCount} current member(s)</p>
         <form action={inviteTripMember.bind(null, tripId)} className="grid gap-4">
           <Field label="Email"><Input name="email" type="email" required placeholder="friend@example.com" /></Field>
-          <Field label="Role">
-            <Select name="role" defaultValue="viewer">
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
-            </Select>
-          </Field>
           <Button type="submit">Send Invite</Button>
         </form>
       </IOSBottomSheet>

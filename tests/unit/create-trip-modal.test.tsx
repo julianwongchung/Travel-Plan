@@ -25,7 +25,7 @@ describe("CreateTripModal", () => {
     cleanup();
     window.sessionStorage.clear();
     createTripFromModal.mockReset();
-    createTripFromModal.mockResolvedValue("trip-1");
+    createTripFromModal.mockResolvedValue({ ok: true, tripId: "trip-1" });
     push.mockReset();
   });
 
@@ -58,6 +58,16 @@ describe("CreateTripModal", () => {
     expect(screen.queryByRole("spinbutton")).toBeNull();
   });
 
+  it("keeps focus in the traveler name input while typing", () => {
+    openModal();
+
+    const travelerName = screen.getByRole("textbox", { name: "Traveler name" });
+    travelerName.focus();
+    fireEvent.change(travelerName, { target: { value: "C" } });
+
+    expect(document.activeElement).toBe(travelerName);
+  });
+
   it("persists traveler drafts and submits trimmed unique traveler names", async () => {
     openModal();
     fillRequiredTripFields();
@@ -86,6 +96,26 @@ describe("CreateTripModal", () => {
       expect(window.sessionStorage.getItem(travelerDraftStorageKey)).toBeNull();
     });
     expect(push).toHaveBeenCalledWith("/trips/trip-1/overview");
+  });
+
+  it("shows returned create errors without closing the modal", async () => {
+    createTripFromModal.mockResolvedValueOnce({
+      ok: false,
+      error: "This currency is not enabled in the database yet. Apply the latest Supabase migration and try again.",
+    });
+    openModal();
+    fillRequiredTripFields();
+
+    await waitFor(() => {
+      expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("This currency is not enabled in the database yet. Apply the latest Supabase migration and try again.")).toBeTruthy();
+    });
+    expect(screen.getByRole("heading", { name: "Create Private Trip" })).toBeTruthy();
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("blocks duplicate traveler names before creating", async () => {

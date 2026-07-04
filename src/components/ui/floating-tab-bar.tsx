@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, MapPin, Plane, WalletCards } from "lucide-react";
+import { CalendarDays, Home, MapPin, Plane, ShieldCheck, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
-type FloatingTabBarIcon = "trips" | "overview" | "trip-plan" | "places" | "expenses";
+type FloatingTabBarIcon = "trips" | "overview" | "trip-plan" | "places" | "expenses" | "admin";
 
 const icons = {
   trips: Plane,
@@ -13,6 +13,7 @@ const icons = {
   "trip-plan": CalendarDays,
   places: MapPin,
   expenses: WalletCards,
+  admin: ShieldCheck,
 } satisfies Record<FloatingTabBarIcon, typeof Home>;
 
 export type FloatingTabBarItem = {

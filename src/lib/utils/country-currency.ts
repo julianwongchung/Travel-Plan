@@ -8,6 +8,7 @@ export type CountryCurrencyOption = {
 export const countryCurrencyOptions = [
   { country: "Malaysia", currency: "MYR" },
   { country: "Singapore", currency: "SGD" },
+  { country: "China", currency: "CNY" },
   { country: "Japan", currency: "JPY" },
   { country: "Vietnam", currency: "VND" },
   { country: "Thailand", currency: "THB" },

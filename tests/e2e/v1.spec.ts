@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Travel OS V1", () => {
-  test("redirects unauthenticated users to login", async ({ page }) => {
+  test("sends unauthenticated users from trips to login", async ({ page }) => {
     await page.goto("/trips");
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("protects approved V1 trip workspace routes", async ({ page }) => {
+  test("keeps workspace routes behind login", async ({ page }) => {
     for (const route of [
       "/trips/trip-1/overview",
       "/trips/trip-1/trip-plan",
