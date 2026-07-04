@@ -105,8 +105,10 @@ describe("admin RBAC migration and server action boundary", () => {
 
   it("keeps admin forms from submitting when service role env is missing", () => {
     expect(supabaseEnv).toContain("export function hasSupabaseAdminEnv");
+    expect(supabaseEnv).toContain("process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY");
     expect(adminPage).toContain("hasSupabaseAdminEnv");
     expect(adminPage).toContain("SUPABASE_SERVICE_ROLE_KEY");
+    expect(adminPage).toContain("SUPABASE_SECRET_KEY");
     expect(adminPage).toContain("disabled={!adminEnvConfigured}");
     expect(adminPage).toContain("action={adminEnvConfigured ? createAppUser : undefined}");
   });

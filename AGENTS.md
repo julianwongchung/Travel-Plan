@@ -202,6 +202,7 @@ Never expose:
 
 ```txt
 SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_SECRET_KEY
 ```
 
 ---

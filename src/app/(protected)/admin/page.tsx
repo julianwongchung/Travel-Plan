@@ -48,7 +48,7 @@ export default async function AdminPage() {
             </div>
             {!adminEnvConfigured ? (
               <div className="rounded-[18px] border border-[var(--border)] bg-[var(--muted)] p-4 text-sm font-semibold leading-6 text-[var(--muted-foreground)]">
-                Admin user management needs the server-only <code>SUPABASE_SERVICE_ROLE_KEY</code> environment variable. Add it to <code>.env.local</code> to create users or change account status.
+                Admin user management needs a server-only Supabase admin key: <code>SUPABASE_SERVICE_ROLE_KEY</code> or <code>SUPABASE_SECRET_KEY</code>. Add one to <code>.env.local</code> and your deployment environment to create users or change account status.
               </div>
             ) : null}
             <form action={adminEnvConfigured ? createAppUser : undefined} className="grid gap-4 md:grid-cols-2">
